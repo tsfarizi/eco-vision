@@ -1,10 +1,7 @@
 import './styles/styles.css';
 import { login, register } from './api/auth.js';
-
 import { handleClassification } from './api/predict.js';
-
 import { fetchWasteBanks } from './api/wasteBanks.js';
-
 import { initializeMap, resizeMap } from './api/wasteBanks.js';
 
 window.showPage = showPage;
