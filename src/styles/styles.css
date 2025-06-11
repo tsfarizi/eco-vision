@@ -633,165 +633,6 @@ nav a {
   }
 }
 
-/* Bank Sampah */
-
-
-/* ======================== */
-/*  BANK SAMPAH FINAL STYLE */
-/* ======================== */
-
-/* Container utama bank sampah */
-.container-bank {
-  max-width: 1024px;
-  margin: auto;
-  padding: 20px;
-}
-
-/* Kartu besar atas */
-.card-full {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #c7eac0;
-  border-radius: 10px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.04);
-}
-
-.card-full .left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.card-full .left h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-.card-full .right {
-  font-size: 20px;
-  font-weight: bold;
-  color: #333;
-}
-
-/* Gaya gambar ikon */
-.icon-image {
-  width: 100px;
-  height: auto;
-}
-
-/* Kartu tengah (poin & tombol setor) */
-.card.center {
-  background-color: #d4f2c7;
-  text-align: center;
-  border-radius: 10px;
-  padding: 20px;
-  margin-bottom: 16px;
-}
-
-.card.center p {
-  margin-bottom: 8px;
-}
-
-.card.center .btn {
-  background-color: #7dbf81;
-  color: white;
-  font-weight: bold;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-/* Grid bagian bawah */
-.grid-bank {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-/* Kartu klasifikasi sampah */
-.card.classification {
-  background-color: #c7eac0;
-  border-radius: 10px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.card.classification .left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.card.classification strong {
-  font-size: 15px;
-  color: #1a1a1a;
-}
-
-.card.classification .tags {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.card.classification .tags button {
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: none;
-  background-color: #f0f8e0;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.tags {
-  display: flex;
-  justify-content: center;  
-  gap: 16px;                 
-  margin-top: 20px;          
-  flex-wrap: wrap;          
-}
-
-.tags button {
-  font-size: 16px;           
-  padding: 12px 24px;        
-  border: none;
-  border-radius: 12px;
-  background-color: #f4f9ed;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-
-/* Kartu peta */
-.card.map {
-  background-color: #a8d8a1;
-  border-radius: 10px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.map-placeholder {
-  width: 100%;
-  height: 140px;
-  background-color: #e2f7da;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #555;
-  font-weight: bold;
-}
 
 
 /* Landing Page */
@@ -922,4 +763,83 @@ button:hover, a:hover, .btn-login:hover, .cta-button:hover {
   .card {
     padding: 16px;
   }
+}
+
+/* ================================= */
+/* MAP UI & LAYOUT INTEGRITY STYLES  */
+/* ================================= */
+
+/* Container utama bank sampah - Ensuring it's centered and has padding */
+.container-bank {
+  max-width: 1024px; /* Or 1100px, as per suggestion */
+  margin-left: auto;
+  margin-right: auto;
+  padding: 20px; /* Keeps content off screen edges */
+}
+
+/* Margins for cards within .container-bank for visual separation */
+.card-full {
+  margin-bottom: 20px; /* Increased from 16px for better separation */
+}
+
+.card.center {
+  margin-bottom: 20px; /* Increased from 16px for better separation */
+}
+
+/* Grid container for the map and potentially other items */
+.grid-bank {
+  display: block; /* As set by JS, good to have in CSS too */
+  /* If it were display: grid; grid-template-columns: 1fr; would make .card.map full width */
+  margin-bottom: 20px; /* Space below the map area */
+}
+
+/* Styling for the card that directly contains the map frame */
+.card.map {
+  padding: 0 !important; /* CRITICAL: Ensures map-frame-container's padding is effective. */
+  /* width: 100%; by default for block elements or if parent is grid/flex and configured */
+  /* background-color: #a8d8a1; -- This was the old color, can be removed if map-frame has its own BG */
+  border-radius: 12px; /* Should match or be slightly larger than map-frame-container */
+}
+
+/* Styles for the map frame that sits inside .card.map */
+.map-frame-container {
+  width: 100%;
+  padding: 10px; /* Padding between the frame's border and the map itself */
+  border: 1px solid #e0e0e0;
+  border-radius: 12px; /* Visual frame border radius */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Subtle shadow */
+  background-color: #fdfdfd; /* Light background for the frame area */
+  box-sizing: border-box;
+}
+
+/* The placeholder visible before the map loads */
+.map-placeholder {
+  width: 100%;
+  /* height: 140px; -- This was the old style, actual height will be map height or loading text */
+  background-color: #eef9ea; /* Softer placeholder background */
+  border-radius: 8px; /* Rounded corners for placeholder */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  font-weight: bold;
+  min-height: 150px; /* Give placeholder some initial height */
+}
+
+/* The div where Leaflet map is rendered */
+#waste-bank-map {
+  width: 100%;
+  height: 400px; /* This height is set by JS, but good to note */
+  border-radius: 8px; /* Inner radius for the map, slightly less than frame's padding/radius */
+  box-sizing: border-box;
+}
+
+/* General section padding - No changes, just confirming its presence and purpose */
+#main-app .section {
+  padding-top: 15px;
+  padding-bottom: 15px;
+  /* Note: If .main-header becomes position:fixed, its height (e.g., 60-80px)
+     would need to be added as padding-top here to prevent content obscuring.
+     Example for a 70px fixed header: padding-top: calc(70px + 15px);
+  */
 }

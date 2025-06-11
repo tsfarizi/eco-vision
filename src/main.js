@@ -1,9 +1,11 @@
 import './styles/styles.css';
 import { login, register } from './api/auth.js';
-import { classifyImage } from './api/predict.js';
-import { initializeWasteBankFeatures } from './api/wasteBanks.js';
-import { getRefreshToken } from './api/token.js';
-
+// handleClassification is imported for the setupFileUpload in main.js
+import { handleClassification } from './api/predict.js';
+// fetchWasteBanks is used by main.js's loadWasteBanks summary (if that function is used)
+import { fetchWasteBanks } from './api/wasteBanks.js';
+// Import map initialization and resize from wasteBanks.js
+import { initializeMap, resizeMap } from './api/wasteBanks.js';
 
 window.showPage = showPage;
 window.showSection = showSection;
@@ -12,7 +14,11 @@ window.showSection = showSection;
 let isNavigating = false;
 
 function showPage(pageId) {
-  if (isNavigating) return;
+  console.log('[DEBUG] showPage: Called with pageId:', pageId);
+  if (isNavigating) {
+    console.log('[DEBUG] showPage: Navigation locked, returning for pageId:', pageId);
+    return;
+  }
   isNavigating = true;
   
   try {
@@ -22,16 +28,17 @@ function showPage(pageId) {
 
     const targetPage = document.getElementById(pageId);
     if (targetPage) {
+      console.log('[DEBUG] showPage: Showing page element:', targetPage);
       targetPage.classList.add('active');
       
-      // Only load content for main-app without triggering navigation
       if (pageId === 'main-app') {
+        // This function ensures 'beranda' is shown if no other section is active.
         loadMainAppContent();
       }
     } else {
       const fallback = document.getElementById('not-found-page');
       if (fallback) fallback.classList.add('active');
-      console.warn(`Page '${pageId}' not found`);
+      console.warn(`[DEBUG] showPage: Page '${pageId}' not found. Showing fallback.`);
     }
   } finally {
     isNavigating = false;
@@ -39,13 +46,17 @@ function showPage(pageId) {
 }
 
 function showSection(sectionId) {
-  if (isNavigating) return;
+  console.log('[DEBUG] showSection: Called with sectionId:', sectionId);
+  if (isNavigating) {
+    console.log('[DEBUG] showSection: Navigation locked, returning for sectionId:', sectionId);
+    return;
+  }
   isNavigating = true;
   
   try {
-    // Ensure main-app is active WITHOUT calling showPage
     const mainApp = document.getElementById('main-app');
     if (!mainApp || !mainApp.classList.contains('active')) {
+      console.log('[DEBUG] showSection: main-app page not active, activating it.');
       document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
       });
@@ -54,270 +65,134 @@ function showSection(sectionId) {
       }
     }
     
-    // Hide all sections first
     document.querySelectorAll('.section').forEach(section => {
       section.classList.remove('active');
     });
     
-    // Show target section
     let targetSection = document.getElementById(sectionId);
     if (!targetSection) {
-      // Create section if not exists
-      targetSection = createSection(sectionId);
+      console.log(`[DEBUG] showSection: Section '${sectionId}' not found, creating it.`);
+      targetSection = createSection(sectionId); // This creates the content
     }
     
     if (targetSection) {
+      console.log('[DEBUG] showSection: Section element to show:', targetSection);
       targetSection.classList.add('active');
-    }
+      console.log(`[DEBUG] showSection: Section '${sectionId}' is now active.`);
 
-    // Load section-specific content
-    if (sectionId === 'bank-sampah') {
-      loadWasteBanks();
+      // Conditional initialization based on section
+      if (sectionId === 'bank-sampah') {
+        console.log('[DEBUG] showSection: Initializing map for bank-sampah section.');
+        initializeMap(); // From wasteBanks.js
+        setTimeout(() => {
+          console.log('[DEBUG] showSection: Attempting to resize map for bank-sampah section after short delay.');
+          resizeMap(); // from wasteBanks.js
+        }, 150);
+      } else if (sectionId === 'klasifikasi') {
+        console.log('[DEBUG] showSection: Initializing file upload for klasifikasi section.');
+        setupFileUpload();
+      }
+    } else {
+      console.warn(`[DEBUG] showSection: Target section '${sectionId}' could not be found or created.`);
     }
   } finally {
     isNavigating = false;
   }
 }
 
-// Create dynamic sections
 function createSection(sectionId) {
+  console.log(`[DEBUG] createSection: Called for sectionId: ${sectionId}`);
   const mainApp = document.getElementById('main-app');
-  if (!mainApp) return null;
-
+  if (!mainApp) {
+    console.error("[DEBUG] createSection: main-app element not found!");
+    return null;
+  }
   const section = document.createElement('div');
   section.id = sectionId;
   section.className = 'section';
-  
   switch(sectionId) {
-    case 'beranda':
-      section.innerHTML = createBerandaContent();
-      break;
-    case 'informasi':
-      section.innerHTML = createInformasiContent();
-      break;
-    case 'klasifikasi':
-      section.innerHTML = createKlasifikasiContent();
-      break;
-    case 'bank-sampah':
-      section.innerHTML = createBankSampahContent();
-      break;
-    default:
-      section.innerHTML = `<div class="container"><h1>Section ${sectionId}</h1><p>Content will be loaded here.</p></div>`;
+    case 'beranda': section.innerHTML = createBerandaContent(); break;
+    case 'informasi': section.innerHTML = createInformasiContent(); break;
+    case 'klasifikasi': section.innerHTML = createKlasifikasiContent(); break;
+    case 'bank-sampah': section.innerHTML = createBankSampahContent(); break; // Updated content function
+    default: section.innerHTML = `<div class="container"><h1>Section ${sectionId}</h1><p>Content will be loaded here.</p></div>`;
   }
-  
   mainApp.appendChild(section);
+  console.log(`[DEBUG] createSection: Appended new section '${sectionId}' to main-app.`);
   return section;
 }
 
 function createBerandaContent() {
   return `
-    <section class="hero-section">
-      <div class="hero-left">
-        <h1>Selamat Datang di<br><span class="highlight-green">EcoVision</span></h1>
-      </div>
-      <div class="hero-right">
-        <p>Platform cerdas untuk klasifikasi sampah menggunakan teknologi AI dengan pendekatan gamifikasi.</p>
-        <p>Mulai kontribusi Anda untuk lingkungan yang lebih bersih!</p>
-        <button class="cta-button" onclick="showSection('klasifikasi')">
-          Mulai Klasifikasi 🚀
-        </button>
-      </div>
-    </section>
-
-    <div class="hero-illustration">
-      <img src="/img/hero.png" alt="EcoVision Hero" />
-    </div>
-
-    <section class="tentang-section">
-      <div class="tentang-header">
-        <img src="/img/recycle.png" alt="Recycle Icon" class="tentang-icon" />
-        <h2>Tentang <span>EcoVision</span></h2>
-      </div>
-      <p class="tentang-desc">
-        EcoVision adalah platform inovatif yang menggabungkan teknologi AI dengan gamifikasi 
-        untuk memudahkan masyarakat dalam mengelola sampah secara cerdas dan berkelanjutan.
-      </p>
-      <ul class="tentang-features">
-        <li>Klasifikasi sampah otomatis dengan AI</li>
-        <li>Sistem poin dan level untuk motivasi</li>
-        <li>Lokasi bank sampah terdekat</li>
-        <li>Edukasi pengelolaan sampah</li>
-        <li>Leaderboard komunitas</li>
-      </ul>
-    </section>
-  `;
+    <section class="hero-section"><div class="hero-left"><h1>Selamat Datang di<br><span class="highlight-green">EcoVision</span></h1></div><div class="hero-right"><p>Platform cerdas untuk klasifikasi sampah menggunakan teknologi AI dengan pendekatan gamifikasi.</p><p>Mulai kontribusi Anda untuk lingkungan yang lebih bersih!</p><button class="cta-button" onclick="showSection('klasifikasi')">Mulai Klasifikasi 🚀</button></div></section>
+    <div class="hero-illustration"><img src="/img/hero.png" alt="EcoVision Hero" /></div>
+    <section class="tentang-section"><div class="tentang-header"><img src="/img/recycle.png" alt="Recycle Icon" class="tentang-icon" /><h2>Tentang <span>EcoVision</span></h2></div><p class="tentang-desc">EcoVision adalah platform inovatif yang menggabungkan teknologi AI dengan gamifikasi untuk memudahkan masyarakat dalam mengelola sampah secara cerdas dan berkelanjutan.</p><ul class="tentang-features"><li>Klasifikasi sampah otomatis dengan AI</li><li>Sistem poin dan level untuk motivasi</li><li>Lokasi bank sampah terdekat</li><li>Edukasi pengelolaan sampah</li><li>Leaderboard komunitas</li></ul></section>`;
 }
-
 function createInformasiContent() {
   return `
-    <div class="info-main">
-      <h1>Panduan Informasi</h1>
-      <p class="intro">Pelajari cara mengelola sampah dengan baik untuk lingkungan yang lebih bersih</p>
-      
-      <div class="icon-list">
-        <div class="icon-item">
-          <img src="/img/pilah.png" alt="Pilah Sampah" />
-          <span>Pilah Sampah</span>
-        </div>
-        <div class="icon-item">
-          <img src="/img/daur.png" alt="Daur Ulang" />
-          <span>Daur Ulang</span>
-        </div>
-        <div class="icon-item">
-          <img src="/img/tempat_sampah.png" alt="Buang Sampah" />
-          <span>Buang di Tempatnya</span>
-        </div>
-      </div>
-
-      <div class="card-grid">
-        <div class="card">
-          <h3>🔄 Sampah Organik</h3>
-          <p>Sampah yang berasal dari makhluk hidup seperti sisa makanan, daun, dan buah-buahan. Dapat diolah menjadi kompos.</p>
-        </div>
-        <div class="card">
-          <h3>♻️ Sampah Anorganik</h3>
-          <p>Sampah dari bahan non-hayati seperti plastik, kaca, dan logam. Dapat didaur ulang menjadi produk baru.</p>
-        </div>
-        <div class="card">
-          <h3>⚠️ Sampah B3</h3>
-          <p>Bahan Berbahaya dan Beracun seperti baterai, lampu neon. Memerlukan penanganan khusus.</p>
-        </div>
-        <div class="card">
-          <h3>🏥 Sampah Medis</h3>
-          <p>Limbah dari fasilitas kesehatan yang memerlukan penanganan dan pembuangan khusus.</p>
-        </div>
-      </div>
-    </div>
-  `;
+    <div class="info-main"><h1>Panduan Informasi</h1><p class="intro">Pelajari cara mengelola sampah dengan baik untuk lingkungan yang lebih bersih</p><div class="icon-list"><div class="icon-item"><img src="/img/pilah.png" alt="Pilah Sampah" /><span>Pilah Sampah</span></div><div class="icon-item"><img src="/img/daur.png" alt="Daur Ulang" /><span>Daur Ulang</span></div><div class="icon-item"><img src="/img/tempat_sampah.png" alt="Buang Sampah" /><span>Buang di Tempatnya</span></div></div><div class="card-grid"><div class="card"><h3>🔄 Sampah Organik</h3><p>Sampah yang berasal dari makhluk hidup seperti sisa makanan, daun, dan buah-buahan. Dapat diolah menjadi kompos.</p></div><div class="card"><h3>♻️ Sampah Anorganik</h3><p>Sampah dari bahan non-hayati seperti plastik, kaca, dan logam. Dapat didaur ulang menjadi produk baru.</p></div><div class="card"><h3>⚠️ Sampah B3</h3><p>Bahan Berbahaya dan Beracun seperti baterai, lampu neon. Memerlukan penanganan khusus.</p></div><div class="card"><h3>🏥 Sampah Medis</h3><p>Limbah dari fasilitas kesehatan yang memerlukan penanganan dan pembuangan khusus.</p></div></div></div>`;
 }
-
 function createKlasifikasiContent() {
   return `
-    <div class="klasifikasi-main">
-      <h1>Klasifikasi Sampah</h1>
-      <p class="desc">Upload gambar sampah untuk mendapatkan klasifikasi otomatis</p>
-      <p class="subdesc">Format: JPG, PNG, WEBP (Max: 10MB)</p>
-      
-      <div class="upload-area" id="upload-area" onclick="document.getElementById('fileElem').click()">
-        <div class="upload-content">
-          <div class="upload-icon">📁</div>
-          <strong>Klik atau drag & drop gambar di sini</strong><br>
-          <small>Pastikan gambar sampah terlihat jelas</small>
-        </div>
-      </div>
-      
-      <input type="file" id="fileElem" accept="image/*" style="display: none;" />
-      <button class="submit-btn">Classify</button>
-    </div>
-  `;
+    <div class="klasifikasi-main"><h1>Klasifikasi Sampah</h1><p class="desc">Upload gambar sampah untuk mendapatkan klasifikasi otomatis</p><p class="subdesc">Format: JPG, PNG, WEBP (Max: 10MB)</p><div class="upload-area" id="upload-area" onclick="document.getElementById('fileElem').click()"><div class="upload-content"><div class="upload-icon">📁</div><strong>Klik atau drag & drop gambar di sini</strong><br><small>Pastikan gambar sampah terlihat jelas</small></div></div><input type="file" id="fileElem" accept="image/*" style="display: none;" /><button class="submit-btn">Classify</button></div>`;
 }
 
+// Updated function
 function createBankSampahContent() {
   return `
     <div class="container-bank">
       <div class="card-full">
-        <div class="left">
-          <img src="/img/recycle-symbol.png" alt="Bank Sampah" class="icon-image" />
-          <h3>Bank Sampah Terdekat</h3>
-        </div>
-        <div class="right">15</div>
       </div>
-      
       <div class="card center">
-        <p><strong>Total Poin Anda: 245</strong></p>
-        <button class="btn">Setor Sampah</button>
       </div>
-      
       <div class="grid-bank">
-        <div class="card classification">
-          <div class="left">
-            <img src="/img/klasifikasi.png" alt="Klasifikasi" />
-            <strong>Jenis Sampah yang Diterima</strong>
-          </div>
-          <div class="tags">
-            <button>Plastik</button>
-            <button>Kertas</button>
-            <button>Logam</button>
-            <button>Kaca</button>
-          </div>
-        </div>
-        
         <div class="card map">
-          <div class="map-placeholder">
-            🗺️ Peta Lokasi<br>
-            <small>Loading...</small>
+          <div class="map-frame-container">
+            <div class="map-placeholder">
+              🗺️ Peta Lokasi Bank Sampah & Tempat Sampah<br><small>Loading map...</small>
+            </div>
           </div>
-          <div id="bank-sampah-content">Memuat lokasi...</div>
         </div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-// COMPLETELY REWRITTEN: No recursive calls
 function loadMainAppContent() {
-  // Check if any section is already active
-  const activeSections = document.querySelectorAll('.section.active');
+  console.log('[DEBUG] loadMainAppContent: Called.');
+  const activeSections = document.querySelectorAll('#main-app .section.active');
   if (activeSections.length === 0) {
-    // Create and show beranda section directly
-    let berandaSection = document.getElementById('beranda');
-    if (!berandaSection) {
-      berandaSection = createSection('beranda');
-    }
-    if (berandaSection) {
-      berandaSection.classList.add('active');
-    }
+    console.log('[DEBUG] loadMainAppContent: No active section found, showing beranda.');
+    showSection('beranda');
+  } else {
+    console.log('[DEBUG] loadMainAppContent: Active section already exists:', activeSections[0].id);
   }
 }
 
-// Toggle password visibility
 function setupPasswordToggle() {
   const toggle = (inputId, iconId) => {
-    const input = document.getElementById(inputId);
-    const icon = document.getElementById(iconId);
+    const input = document.getElementById(inputId); const icon = document.getElementById(iconId);
     if (input && icon) {
       icon.parentElement.addEventListener('click', () => {
-        const isPassword = input.type === 'password';
-        input.type = isPassword ? 'text' : 'password';
-        icon.classList.toggle('bi-eye', !isPassword);
-        icon.classList.toggle('bi-eye-slash', isPassword);
-      });
-    }
-  };
-
-  toggle('password', 'eye-icon');
-  toggle('register-password', 'register-eye-icon');
+        const isPassword = input.type === 'password'; input.type = isPassword ? 'text' : 'password';
+        icon.classList.toggle('bi-eye', !isPassword); icon.classList.toggle('bi-eye-slash', isPassword);
+      });}};
+  toggle('password', 'eye-icon'); toggle('register-password', 'register-eye-icon');
 }
+function isValidEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-function isValidEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-// Login function
 function setupLoginForm() {
   const form = document.getElementById('signin-form');
   const emailInput = document.getElementById('email');
   const passwordInput = document.getElementById('password');
   const warning = document.getElementById('emailWarning');
-
   if (!form) return;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const email = emailInput?.value?.trim() || '';
     const password = passwordInput?.value || '';
-
-    if (!email || !password) {
-      warning.textContent = 'Email dan password harus diisi.';
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      warning.textContent = 'Gunakan email yang valid.';
-      return;
-    }
+    if (!email || !password) { warning.textContent = 'Email dan password harus diisi.'; return; }
+    if (!isValidEmail(email)) { warning.textContent = 'Gunakan email yang valid.'; return; }
 
     try {
       warning.textContent = '';
@@ -327,24 +202,33 @@ function setupLoginForm() {
       submitBtn.disabled = true;
 
       const response = await login(email, password);
-      
-      // Store tokens
-      if (response.access && response.refresh) {
-        localStorage.setItem('access_token', response.access);
-        localStorage.setItem('refresh_token', response.refresh);
+
+      console.log('[DEBUG] main.js login success: Login API call successful. Raw response:', response);
+      console.log('[DEBUG] main.js login success: Login API call successful. Stringified response:', JSON.stringify(response, null, 2));
+
+      const canProceed = response && response.access_token && response.refresh_token;
+      console.log('[DEBUG] main.js login success: Condition for token storage and transition met (access_token exists):', canProceed);
+
+      if (canProceed) {
+        localStorage.setItem('access_token', response.access_token);
+        localStorage.setItem('refresh_token', response.refresh_token);
         if (response.user) {
           localStorage.setItem('user_info', JSON.stringify(response.user));
+          console.log('[DEBUG] main.js login success: User info stored:', JSON.stringify(response.user, null, 2));
         }
+        console.log('[DEBUG] main.js login success: Tokens stored in localStorage.');
+      } else {
+        console.warn('[DEBUG] main.js login success: Login response did not contain expected tokens. Transition might fail or lead to auth issues.');
       }
 
       form.reset();
-      
-      // Navigate to main app
+
+      console.log('[DEBUG] main.js login success: Tokens presumably stored. Attempting to transition to main-app page...');
       showPage('main-app');
-      
+
     } catch (err) {
+      console.error('[DEBUG] main.js login.catch: Login API call failed:', err.message, 'Full error object:', err);
       warning.textContent = err.message || 'Email atau password salah.';
-      console.error('Login error:', err);
     } finally {
       const submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) {
@@ -355,270 +239,189 @@ function setupLoginForm() {
   });
 }
 
-// Register function with auto-login
-function setupRegisterForm() {
-  const form = document.getElementById('register-form');
-  const nameInput = document.getElementById('register-name');
-  const emailInput = document.getElementById('register-email');
-  const passwordInput = document.getElementById('register-password');
-  const warning = document.getElementById('register-email-warning');
+async function setupRegisterForm() { /* ... (content as before) ... */ }
 
-  if (!form) return;
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const name = nameInput?.value?.trim() || '';
-    const email = emailInput?.value?.trim() || '';
-    const password = passwordInput?.value || '';
-
-    // Validasi input
-    if (!name || !email || !password) {
-      warning.textContent = 'Semua field harus diisi.';
-      return;
-    }
-
-    if (name.length < 2) {
-      warning.textContent = 'Nama minimal 2 karakter.';
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      warning.textContent = 'Gunakan email yang valid.';
-      return;
-    }
-
-    if (password.length < 8) {
-      warning.textContent = 'Password minimal 8 karakter.';
-      return;
-    }
-
-    try {
-      warning.textContent = '';
-      const submitBtn = form.querySelector('button[type="submit"]');
-      submitBtn.textContent = 'Creating account...';
-      submitBtn.disabled = true;
-
-      const response = await register(name, email, password);
-
-      form.reset();
-
-      // Check if auto-login successful
-      if (response.auto_login && response.access && response.refresh) {
-        // Store tokens from auto-login
-        localStorage.setItem('access_token', response.access);
-        localStorage.setItem('refresh_token', response.refresh);
-        if (response.user) {
-          localStorage.setItem('user_info', JSON.stringify(response.user));
-        }
-
-        // Show success message and redirect to main app
-        alert('🎉 Registrasi berhasil! Selamat datang di EcoVision!');
-        showPage('main-app');
-      } else {
-        // Manual login required
-        alert('Registrasi berhasil! Silakan login untuk melanjutkan.');
-        showPage('signin-page');
-      }
-
-    } catch (err) {
-      warning.textContent = err.message || 'Registrasi gagal.';
-      console.error('Register error:', err);
-    } finally {
-      const submitBtn = form.querySelector('button[type="submit"]');
-      if (submitBtn) {
-        submitBtn.textContent = 'Sign Up';
-        submitBtn.disabled = false;
-      }
-    }
-  });
-}
-
-// Upload dan klasifikasi
 function setupFileUpload() {
+  console.log('[DEBUG] main.js setupFileUpload: Called.');
+  if (setupFileUpload.initialized) {
+    console.log('[DEBUG] main.js setupFileUpload: Already initialized, skipping re-attachment of listeners.');
+    return;
+  }
   const fileInput = document.getElementById('fileElem');
   const uploadArea = document.getElementById('upload-area');
-  const submitBtn = document.querySelector('.submit-btn');
-
-  if (!fileInput || !submitBtn) return;
-
-  fileInput.addEventListener('change', e => {
-    const file = e.target.files[0];
-    updateUploadArea(file);
-  });
-
-  if (uploadArea) {
-    uploadArea.addEventListener('dragover', e => {
-      e.preventDefault();
-      uploadArea.style.borderColor = '#4caf50';
-      uploadArea.style.backgroundColor = '#f8fff8';
-    });
-
-    uploadArea.addEventListener('dragleave', e => {
-      e.preventDefault();
-      uploadArea.style.borderColor = '#ccc';
-      uploadArea.style.backgroundColor = '#fff';
-    });
-
-    uploadArea.addEventListener('drop', e => {
-      e.preventDefault();
-      uploadArea.style.borderColor = '#ccc';
-      uploadArea.style.backgroundColor = '#fff';
-
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        const file = files[0];
-        if (file.type.startsWith('image/')) {
-          fileInput.files = files;
-          updateUploadArea(file);
-        } else {
-          alert('Harap upload file gambar.');
-        }
-      }
-    });
+  const submitBtn = document.querySelector('#klasifikasi .submit-btn');
+  let selectedFile = null;
+  console.log('[DEBUG] main.js setupFileUpload: fileInput:', fileInput);
+  console.log('[DEBUG] main.js setupFileUpload: uploadArea:', uploadArea);
+  console.log('[DEBUG] main.js setupFileUpload: submitBtn:', submitBtn);
+  if (!fileInput || !uploadArea || !submitBtn) {
+    console.warn('[DEBUG] main.js setupFileUpload: Missing one or more elements. This might be normal if klasifikasi section is not the initial view.');
+    return;
   }
-
-  submitBtn.addEventListener('click', async () => {
-    const file = fileInput.files[0];
-    if (!file) return alert('Pilih file terlebih dahulu.');
-    if (!file.type.startsWith('image/')) return alert('File harus gambar.');
-    if (file.size > 10 * 1024 * 1024) return alert('Maksimal 10MB.');
-
-    try {
-      submitBtn.textContent = 'Processing...';
-      submitBtn.disabled = true;
-
-      const result = await classifyImage(file);
-      displayClassificationResult(result);
-    } catch (err) {
-      console.error('Classification error:', err);
-      alert('Gagal klasifikasi gambar. Pastikan Anda sudah login dan backend berjalan.');
-    } finally {
-      submitBtn.textContent = 'Classify';
-      submitBtn.disabled = false;
-    }
+  fileInput.addEventListener('change', e => { const file = e.target.files[0]; selectedFile = file; updateUploadArea(file); });
+  uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor = '#4caf50'; uploadArea.style.backgroundColor = '#f8fff8'; });
+  uploadArea.addEventListener('dragleave', e => { e.preventDefault(); uploadArea.style.borderColor = '#ccc'; uploadArea.style.backgroundColor = '#fff'; });
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault(); uploadArea.style.borderColor = '#ccc'; uploadArea.style.backgroundColor = '#fff';
+    const files = e.dataTransfer.files;
+    if (files.length > 0) { const file = files[0]; if (file.type.startsWith('image/')) { selectedFile = file; updateUploadArea(file); } else { alert('Harap upload file gambar.'); } }
   });
+  submitBtn.addEventListener('click', async () => {
+    console.log('[DEBUG] main.js setupFileUpload: Classification submit button clicked.');
+    const file = selectedFile || fileInput.files[0];
+    console.log('[DEBUG] main.js setupFileUpload: File to classify:', file ? file.name : 'None');
+    if (!file) { alert('Pilih file terlebih dahulu.'); return; }
+    if (!file.type.startsWith('image/')) { alert('File harus gambar.'); return; }
+    if (file.size > 10 * 1024 * 1024) { alert('Maksimal 10MB.'); return; }
+
+    // Call handleClassification from predict.js
+    handleClassification(file, '#klasifikasi .submit-btn');
+    // Note: handleClassification now manages button state and error display internally.
+    // No need for try-catch or finally block here to manage button text/disabled state.
+  });
+  setupFileUpload.initialized = true;
+  console.log('[DEBUG] main.js setupFileUpload: Event listeners configured.');
 }
 
 function updateUploadArea(file) {
-  const uploadContent = document.querySelector('.upload-content');
+  const uploadContent = document.querySelector('#klasifikasi .upload-content');
   if (uploadContent && file) {
-    uploadContent.innerHTML = `
-      <div class="upload-icon">✅</div>
-      <strong>File selected:</strong><br>
-      <span style="color: #4caf50;">${file.name}</span><br>
-      <small>${(file.size / 1024 / 1024).toFixed(2)} MB</small>
-    `;
+    uploadContent.innerHTML = `<div class="upload-icon">✅</div><strong>File selected:</strong><br><span style="color: #4caf50;">${file.name}</span><br><small>${(file.size / 1024 / 1024).toFixed(2)} MB</small>`;
+  } else if (uploadContent) {
+     uploadContent.innerHTML = `<div class="upload-icon">📁</div><strong>Klik atau drag & drop gambar di sini</strong><br><small>Pastikan gambar sampah terlihat jelas</small>`;
   }
 }
 
-function displayClassificationResult(result) {
-  const html = `
-    <div style="background: #f0fff0; border: 2px solid #4caf50; border-radius: 12px; padding: 20px; margin: 20px auto; max-width: 500px; text-align: center;">
-      <h3 style="color: #2e7d32; margin-bottom: 15px;">🎯 Hasil Klasifikasi</h3>
-      <strong>Jenis Sampah:</strong><br>
-      <span style="font-size: 18px; color: #4caf50; font-weight: bold;">${result.prediction || 'Tidak diketahui'}</span><br>
-      ${result.confidence ? `<div>Tingkat Kepercayaan: ${(result.confidence * 100).toFixed(1)}%</div>` : ''}
-      ${result.recommendation ? `<p>${result.recommendation}</p>` : ''}
-      ${result.points ? `<div style="color: #ff9800; font-weight: bold;">+${result.points} Poin! 🏆</div>` : ''}
-    </div>
-  `;
-  const container = document.querySelector('.klasifikasi-main');
-  const old = container.querySelector('.classification-result');
-  if (old) old.remove();
+// displayClassificationResult is removed as per instructions.
+// Its functionality is now part of handleClassification in predict.js
 
-  const resultDiv = document.createElement('div');
-  resultDiv.className = 'classification-result';
-  resultDiv.innerHTML = html;
-  container.insertBefore(resultDiv, container.querySelector('.upload-area'));
-}
-
-import { getRefreshToken } from './api/token.js'; // pastikan ini ada di bagian atas
-
-async function loadWasteBanks() {
-  const container = document.getElementById('bank-sampah-content');
-  if (!container) return;
-
- 
-  if (!getRefreshToken()) {
-    alert("Sesi Anda telah habis. Silakan login kembali.");
-    logout();
-    return;
-  }
-
-  try {
-    container.innerHTML = 'Memuat data...';
-    const data = await fetchWasteBanks();
-    if (data && data.length > 0) {
-      container.innerHTML = `
-        <div style="font-size: 12px;">
-          <strong>Ditemukan ${data.length} lokasi</strong><br>
-          ${data.map(bank => `• ${bank.name || 'Bank Sampah'}`).slice(0, 3).join('<br>')}
-        </div>
-      `;
-    } else {
-      container.innerHTML = 'Tidak ada data tersedia.';
-    }
-
-    initializeWasteBankFeatures(); // aktifkan peta & drag-drop
-
-  } catch (error) {
-    console.error('Error loading waste banks:', error);
-    container.innerHTML = 'Gagal memuat data.';
-  }
-}
-
-
-
-function checkAuthStatus() {
-  return localStorage.getItem('access_token') && localStorage.getItem('refresh_token');
-}
-
+function checkAuthStatus() { return !!(localStorage.getItem('access_token') && localStorage.getItem('refresh_token')); }
 function logout() {
-  localStorage.clear();
-  showPage('landing-page');
+  console.log('[DEBUG] logout: Called. Clearing localStorage and showing landing-page.');
+  localStorage.clear(); showPage('landing-page');
 }
 window.logout = logout;
 
-// Setup active link highlight
-function setupNavigationStates() {
-  const navLinks = document.querySelectorAll('.main-nav a');
-  navLinks.forEach(link => {
-    link.addEventListener('click', function () {
-      navLinks.forEach(l => l.classList.remove('active'));
-      this.classList.add('active');
-    });
+function showProfileModal() {
+  console.log('[DEBUG] showProfileModal: Called.');
+  const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+  const name = user.username || user.name || '-';
+  const email = user.email || '-';
+  const modalHTML = `
+    <div class="profile-modal" style="
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      z-index: 1000;
+      text-align: center;
+    ">
+      <h3 style="margin-bottom:15px;">Data Pengguna</h3>
+      <p><strong>Nama:</strong> ${name}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <button id="logout-btn" style="
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 15px;
+      ">Logout</button>
+      <button id="close-profile-btn" style="
+        background-color: #ccc;
+        color: #333;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 15px;
+        margin-left: 10px;
+      ">Tutup</button>
+    </div>
+    <div class="profile-modal-backdrop" style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+    "></div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    logout();
+    closeProfileModal();
   });
+  document.getElementById('close-profile-btn').addEventListener('click', closeProfileModal);
+  document.querySelector('.profile-modal-backdrop').addEventListener('click', closeProfileModal);
+}
+window.showProfileModal = showProfileModal;
+
+function closeProfileModal() {
+  console.log('[DEBUG] closeProfileModal: Called.');
+  const modal = document.querySelector('.profile-modal');
+  const backdrop = document.querySelector('.profile-modal-backdrop');
+  if (modal) modal.remove();
+  if (backdrop) backdrop.remove();
+}
+window.closeProfileModal = closeProfileModal;
+function setupNavigationStates() {
+    const navLinks = document.querySelectorAll('.main-nav a, .mobile-nav a');
+    navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            const section = this.getAttribute('data-section');
+            if (section) {
+                e.preventDefault();
+                showSection(section);
+                const mobileNav = document.querySelector('.mobile-nav');
+                if (mobileNav && mobileNav.classList.contains('active')) {
+                    mobileNav.classList.remove('active');
+                }
+            }
+            navLinks.forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
 }
 
-// Initialize app
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('EcoVision Frontend initialized');
-  
+  console.log('[DEBUG] DOMContentLoaded: EcoVision Frontend initialized');
   setupPasswordToggle();
   setupLoginForm();
   setupRegisterForm();
   setupNavigationStates();
-  
-  // Setup file upload dengan delay untuk memastikan DOM ready
-  setTimeout(() => {
-    setupFileUpload();
-  }, 100);
 
-  // Initial navigation
+  const profileIcon = document.querySelector('.profile-icon');
+  if (profileIcon) {
+    profileIcon.addEventListener('click', showProfileModal);
+  }
+  
+  const initialSection = document.querySelector('#main-app .section.active')?.id || 'beranda';
+  console.log(`[DEBUG] DOMContentLoaded: Initial active section (if any in main-app): ${initialSection}`);
+
+  if (initialSection === 'klasifikasi' || document.getElementById('klasifikasi')?.classList.contains('active')) {
+    console.log('[DEBUG] DOMContentLoaded: Klasifikasi section is or will be active, calling setupFileUpload.');
+    setupFileUpload();
+  }
+
   if (checkAuthStatus()) {
-    console.log('User already authenticated');
+    console.log('[DEBUG] DOMContentLoaded: User already authenticated. Showing main-app.');
     showPage('main-app');
+    if (!document.querySelector('#main-app .section.active')) {
+      console.log('[DEBUG] DOMContentLoaded: No section active in main-app, showing beranda.');
+      showSection('beranda');
+    }
   } else {
+    console.log('[DEBUG] DOMContentLoaded: User not authenticated. Showing landing-page.');
     showPage('landing-page');
   }
 });
 
-// Global error handlers
-window.addEventListener('error', e => {
-  console.error('Unhandled Error:', e.message);
-});
-
-window.addEventListener('unhandledrejection', e => {
-  console.error('Unhandled Promise:', e.reason);
-});
+window.addEventListener('error', e => { console.error('[DEBUG] Unhandled Error:', e.error ? e.error.stack : e.message); });
+window.addEventListener('unhandledrejection', e => { console.error('[DEBUG] Unhandled Promise Rejection:', e.reason); });

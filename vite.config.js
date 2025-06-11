@@ -12,5 +12,8 @@ export default defineConfig({
     sourcemap: true
   },
   base: './',
-  publicDir: 'public'
+  publicDir: 'public',
+  optimizeDeps: {
+    include: ['leaflet'],
+  },
 })
