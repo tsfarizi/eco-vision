@@ -1,6 +1,13 @@
 import { authHeader, refreshAccessToken, getRefreshToken } from './token.js';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export async function fetchWasteBanks() {
+  // Cek token refresh dulu sebelum request
+  if (!getRefreshToken()) {
+    throw new Error('Sesi Anda telah habis. Silakan login kembali.');
+  }
+
   async function sendRequest() {
     return await fetch(`${BASE_URL}/waste-banks/`, {
       method: 'GET',
@@ -15,28 +22,29 @@ export async function fetchWasteBanks() {
     let res = await sendRequest();
 
     if (res.status === 401) {
-      // 🔐 Tambahkan pengecekan refresh token dulu
-      if (!getRefreshToken()) {
+      // Token expired, coba refresh
+      try {
+        await refreshAccessToken();
+        res = await sendRequest();
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
         throw new Error('Sesi Anda telah habis. Silakan login kembali.');
       }
-
-      await refreshAccessToken();
-      res = await sendRequest();
     }
 
     if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.message || 'Gagal mengambil data bank sampah');
+      const errData = await res.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(errData.message || `HTTP ${res.status}: Gagal mengambil data bank sampah`);
     }
 
-    return await res.json();
+    const data = await res.json();
+    return data;
 
   } catch (err) {
     console.error("Error fetch waste banks:", err);
     throw err;
   }
 }
-
 
 // ===== DRAG & DROP CLASSIFICATION =====
 let selectedFile = null;
@@ -173,6 +181,13 @@ export async function handleClassification() {
     return;
   }
 
+  // Cek token dulu sebelum upload
+  if (!getRefreshToken()) {
+    alert('Sesi Anda telah habis. Silakan login kembali.');
+    if (window.logout) window.logout();
+    return;
+  }
+
   const submitBtn = document.querySelector('.submit-btn');
   if (!submitBtn) {
     console.error('Submit button not found');
@@ -194,10 +209,11 @@ export async function handleClassification() {
 
     // Send to prediction API with retry logic
     async function sendPredictionRequest() {
-      return await fetch(`${BASE_URL}/predict`, {
+      return await fetch(`${BASE_URL}/predict/`, {
         method: 'POST',
         headers: {
           ...authHeader()
+          // Don't set Content-Type - let browser set it for FormData
         },
         body: formData
       });
@@ -207,8 +223,15 @@ export async function handleClassification() {
 
     if (response.status === 401) {
       console.log('Token expired, refreshing...');
-      await refreshAccessToken();
-      response = await sendPredictionRequest();
+      try {
+        await refreshAccessToken();
+        response = await sendPredictionRequest();
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        alert('Sesi Anda telah habis. Silakan login kembali.');
+        if (window.logout) window.logout();
+        return;
+      }
     }
 
     if (!response.ok) {
@@ -254,12 +277,13 @@ function displayClassificationResult(result) {
     ">
       <h3 style="margin-bottom: 15px; color: #4caf50;">🎯 Hasil Klasifikasi</h3>
       <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px;">
-        <p style="margin: 5px 0;"><strong>Jenis Sampah:</strong> <span style="color: #4caf50;">${result.category || result.predicted_class || 'Tidak terdeteksi'}</span></p>
+        <p style="margin: 5px 0;"><strong>Jenis Sampah:</strong> <span style="color: #4caf50;">${result.category || result.predicted_class || result.prediction || 'Tidak terdeteksi'}</span></p>
         <p style="margin: 5px 0;"><strong>Tingkat Kepercayaan:</strong> ${result.confidence ? (result.confidence * 100).toFixed(1) + '%' : result.confidence_score ? (result.confidence_score * 100).toFixed(1) + '%' : 'N/A'}</p>
       </div>
       <div style="margin: 20px 0;">
-        <p style="font-size: 14px; color: #666; line-height: 1.4;">${getWasteDescription(result.category || result.predicted_class)}</p>
+        <p style="font-size: 14px; color: #666; line-height: 1.4;">${getWasteDescription(result.category || result.predicted_class || result.prediction)}</p>
       </div>
+      ${result.points ? `<div style="color: #ff9800; font-weight: bold; margin: 10px 0;">+${result.points} Poin! 🏆</div>` : ''}
       <button onclick="closeClassificationResult()" style="
         background-color: #4caf50;
         color: white;
@@ -286,6 +310,8 @@ function displayClassificationResult(result) {
 }
 
 function getWasteDescription(category) {
+  if (!category) return '♻️ Pastikan sampah dibuang pada tempat yang sesuai untuk menjaga lingkungan';
+  
   const descriptions = {
     'organic': '🌱 Sampah organik dapat dikompos menjadi pupuk alami untuk tanaman',
     'plastic': '♻️ Sampah plastik dapat didaur ulang menjadi produk baru yang berguna',
@@ -451,16 +477,18 @@ async function loadWasteBankMarkers() {
   } catch (error) {
     console.error('Error loading waste bank markers:', error);
     // Add default marker on error
-    const defaultMarker = L.marker([-6.2088, 106.8456]).addTo(map);
-    defaultMarker.bindPopup(`
-      <div style="font-size: 13px;">
-        <strong style="color: #f44336;">⚠️ Bank Sampah Demo</strong><br>
-        <div style="margin: 8px 0;">
-          <i class="bi bi-geo-alt"></i> Data tidak dapat dimuat
+    if (map) {
+      const defaultMarker = L.marker([-6.2088, 106.8456]).addTo(map);
+      defaultMarker.bindPopup(`
+        <div style="font-size: 13px;">
+          <strong style="color: #f44336;">⚠️ Bank Sampah Demo</strong><br>
+          <div style="margin: 8px 0;">
+            <i class="bi bi-geo-alt"></i> Data tidak dapat dimuat
+          </div>
+          <small>Periksa koneksi internet Anda</small>
         </div>
-        <small>Periksa koneksi internet Anda</small>
-      </div>
-    `);
+      `);
+    }
   }
 }
 
@@ -487,7 +515,11 @@ export function initializeWasteBankFeatures() {
   // Add event listener for classification button
   const submitBtn = document.querySelector('.submit-btn');
   if (submitBtn) {
-    submitBtn.addEventListener('click', handleClassification);
+    // Remove existing listeners to avoid duplicates
+    const newBtn = submitBtn.cloneNode(true);
+    submitBtn.parentNode.replaceChild(newBtn, submitBtn);
+    
+    newBtn.addEventListener('click', handleClassification);
     console.log('Classification button event listener added');
   } else {
     console.warn('Submit button not found - pastikan ada element dengan class .submit-btn');
