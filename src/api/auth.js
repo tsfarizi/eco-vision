@@ -21,9 +21,18 @@ export async function login(email, password) {
       
       try {
         const data = await response.json();
-        errorMessage = data.detail || data.message || data.error || 
-                      (data.non_field_errors && data.non_field_errors[0]) ||
-                      `Server error: ${response.status}`;
+        // OpenAPI for 400: {"non_field_errors": ["Invalid email or password."]}
+        if (data.non_field_errors && data.non_field_errors.length > 0) {
+          errorMessage = data.non_field_errors[0];
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.message) {
+          errorMessage = data.message;
+        } else if (data.error) {
+          errorMessage = data.error;
+        } else {
+          errorMessage = `Server error: ${response.status}`;
+        }
       } catch (parseError) {
         errorMessage = `Network error: ${response.status} - ${response.statusText}`;
       }
@@ -33,11 +42,18 @@ export async function login(email, password) {
 
     const data = await response.json();
     
-    if (data.access && data.refresh) {
-      saveTokens(data.access, data.refresh, data.user);
+    // Expect access_token and refresh_token as per OpenAPI spec
+    if (data.access_token && data.refresh_token) {
+      saveTokens(data.access_token, data.refresh_token, data.user);
+      return {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        user: data.user
+      };
+    } else {
+      // Handle cases where tokens might not be in the expected format, though OpenAPI says they should be
+      throw new Error("Login response did not contain expected tokens.");
     }
-    
-    return data;
 
   } catch (error) {
     console.error("Login error:", error);
@@ -72,19 +88,37 @@ export async function register(name, email, password) {
       
       try {
         const registerData = await registerResponse.json();
-        
-        if (registerData.username && registerData.username[0]) {
-          errorMessage = `Username: ${registerData.username[0]}`;
-        } else if (registerData.email && registerData.email[0]) {
+        // OpenAPI for 400: {"email": ["user with this email already exists."]}
+        // Or {"username": ["A user with that username already exists."]}
+        // Or {"password": ["This password is too short."]}
+        if (registerData.email && registerData.email.length > 0) {
           errorMessage = `Email: ${registerData.email[0]}`;
-        } else if (registerData.password && registerData.password[0]) {
+        } else if (registerData.username && registerData.username.length > 0) {
+          errorMessage = `Username: ${registerData.username[0]}`;
+        } else if (registerData.password && registerData.password.length > 0) {
           errorMessage = `Password: ${registerData.password[0]}`;
         } else if (registerData.detail) {
           errorMessage = registerData.detail;
         } else if (registerData.message) {
           errorMessage = registerData.message;
         } else {
-          errorMessage = `Server error: ${registerResponse.status}`;
+          // Collect all error messages if they are in a list
+          const errorKeys = Object.keys(registerData);
+          if (errorKeys.length > 0) {
+            let messages = [];
+            errorKeys.forEach(key => {
+              if (Array.isArray(registerData[key]) && registerData[key].length > 0) {
+                messages.push(`${key}: ${registerData[key][0]}`);
+              }
+            });
+            if (messages.length > 0) {
+              errorMessage = messages.join('; ');
+            } else {
+              errorMessage = `Server error: ${registerResponse.status}`;
+            }
+          } else {
+            errorMessage = `Server error: ${registerResponse.status}`;
+          }
         }
       } catch (parseError) {
         errorMessage = `Network error: ${registerResponse.status} - ${registerResponse.statusText}`;
@@ -95,22 +129,18 @@ export async function register(name, email, password) {
 
     const registerData = await registerResponse.json();
 
-    try {
-      const loginData = await login(email, password);
+    // OpenAPI for /auth/register 201 response includes tokens and user
+    if (registerData.access_token && registerData.refresh_token && registerData.user) {
+      saveTokens(registerData.access_token, registerData.refresh_token, registerData.user);
       return {
-        ...registerData,
-        access: loginData.access,
-        refresh: loginData.refresh,
-        user: loginData.user,
-        auto_login: true
+        access_token: registerData.access_token,
+        refresh_token: registerData.refresh_token,
+        user: registerData.user
       };
-    } catch (loginError) {
-      console.warn("Auto-login failed after registration:", loginError);
-      return {
-        ...registerData,
-        auto_login: false,
-        login_required: true
-      };
+    } else {
+      // This case should ideally not happen if API conforms to spec
+      console.error("Registration response did not contain expected tokens or user data.", registerData);
+      throw new Error("Registrasi berhasil, tetapi data tidak lengkap. Silakan coba login.");
     }
 
   } catch (error) {
