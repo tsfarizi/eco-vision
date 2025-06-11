@@ -6,7 +6,6 @@ import { fetchWasteBanks } from './api/wasteBanks.js';
 window.showPage = showPage;
 window.showSection = showSection;
 
-// Navigasi antar halaman
 function showPage(pageId) {
   document.querySelectorAll('.page').forEach(page => {
     page.classList.remove('active');
@@ -16,9 +15,13 @@ function showPage(pageId) {
   if (targetPage) {
     targetPage.classList.add('active');
     
-    // Load content dinamis sesuai halaman
+    // Load content dinamis sesuai halaman - HANYA jika belum ada section aktif
     if (pageId === 'main-app') {
-      loadMainAppContent();
+      const activeSections = document.querySelectorAll('.section.active');
+      if (activeSections.length === 0) {
+        // Hanya load jika belum ada section yang aktif
+        loadMainAppContent();
+      }
     }
   } else {
     const fallback = document.getElementById('not-found-page');
@@ -28,7 +31,17 @@ function showPage(pageId) {
 }
 
 function showSection(sectionId) {
-  showPage('main-app');
+  // FIXED: Cek dulu apakah sudah di main-app, jika belum baru pindah
+  const mainApp = document.getElementById('main-app');
+  if (!mainApp || !mainApp.classList.contains('active')) {
+    // Hanya panggil showPage jika belum di main-app
+    document.querySelectorAll('.page').forEach(page => {
+      page.classList.remove('active');
+    });
+    if (mainApp) {
+      mainApp.classList.add('active');
+    }
+  }
   
   // Hide all sections first
   document.querySelectorAll('.section').forEach(section => {
@@ -228,8 +241,19 @@ function createBankSampahContent() {
 }
 
 function loadMainAppContent() {
-  // Set default section to beranda
-  showSection('beranda');
+  // FIXED: Cek dulu apakah sudah ada section aktif
+  const activeSections = document.querySelectorAll('.section.active');
+  if (activeSections.length === 0) {
+    // Hanya set default jika belum ada section aktif
+    // JANGAN panggil showSection, langsung buat dan aktifkan
+    let berandaSection = document.getElementById('beranda');
+    if (!berandaSection) {
+      berandaSection = createSection('beranda');
+    }
+    if (berandaSection) {
+      berandaSection.classList.add('active');
+    }
+  }
 }
 
 // Toggle password visibility
