@@ -1,16 +1,16 @@
 import './styles/styles.css';
 import { login, register } from './api/auth.js';
-// handleClassification is imported for the setupFileUpload in main.js
+
 import { handleClassification } from './api/predict.js';
-// fetchWasteBanks is used by main.js's loadWasteBanks summary (if that function is used)
+
 import { fetchWasteBanks } from './api/wasteBanks.js';
-// Import map initialization and resize from wasteBanks.js
+
 import { initializeMap, resizeMap } from './api/wasteBanks.js';
 
 window.showPage = showPage;
 window.showSection = showSection;
 
-// Global state to prevent recursive calls
+
 let isNavigating = false;
 
 function showPage(pageId) {
@@ -32,7 +32,7 @@ function showPage(pageId) {
       targetPage.classList.add('active');
       
       if (pageId === 'main-app') {
-        // This function ensures 'beranda' is shown if no other section is active.
+        
         loadMainAppContent();
       }
     } else {
@@ -72,7 +72,7 @@ function showSection(sectionId) {
     let targetSection = document.getElementById(sectionId);
     if (!targetSection) {
       console.log(`[DEBUG] showSection: Section '${sectionId}' not found, creating it.`);
-      targetSection = createSection(sectionId); // This creates the content
+      targetSection = createSection(sectionId); 
     }
     
     if (targetSection) {
@@ -80,13 +80,13 @@ function showSection(sectionId) {
       targetSection.classList.add('active');
       console.log(`[DEBUG] showSection: Section '${sectionId}' is now active.`);
 
-      // Conditional initialization based on section
+      
       if (sectionId === 'bank-sampah') {
         console.log('[DEBUG] showSection: Initializing map for bank-sampah section.');
-        initializeMap(); // From wasteBanks.js
+        initializeMap(); 
         setTimeout(() => {
           console.log('[DEBUG] showSection: Attempting to resize map for bank-sampah section after short delay.');
-          resizeMap(); // from wasteBanks.js
+          resizeMap(); 
         }, 150);
       } else if (sectionId === 'klasifikasi') {
         console.log('[DEBUG] showSection: Initializing file upload for klasifikasi section.');
@@ -114,7 +114,7 @@ function createSection(sectionId) {
     case 'beranda': section.innerHTML = createBerandaContent(); break;
     case 'informasi': section.innerHTML = createInformasiContent(); break;
     case 'klasifikasi': section.innerHTML = createKlasifikasiContent(); break;
-    case 'bank-sampah': section.innerHTML = createBankSampahContent(); break; // Updated content function
+    case 'bank-sampah': section.innerHTML = createBankSampahContent(); break; 
     default: section.innerHTML = `<div class="container"><h1>Section ${sectionId}</h1><p>Content will be loaded here.</p></div>`;
   }
   mainApp.appendChild(section);
@@ -137,7 +137,7 @@ function createKlasifikasiContent() {
     <div class="klasifikasi-main"><h1>Klasifikasi Sampah</h1><p class="desc">Upload gambar sampah untuk mendapatkan klasifikasi otomatis</p><p class="subdesc">Format: JPG, PNG, WEBP (Max: 10MB)</p><div class="upload-area" id="upload-area" onclick="document.getElementById('fileElem').click()"><div class="upload-content"><div class="upload-icon">📁</div><strong>Klik atau drag & drop gambar di sini</strong><br><small>Pastikan gambar sampah terlihat jelas</small></div></div><input type="file" id="fileElem" accept="image/*" style="display: none;" /><button class="submit-btn">Classify</button></div>`;
 }
 
-// Updated function
+
 function createBankSampahContent() {
   return `
     <div class="container-bank">
@@ -239,7 +239,7 @@ function setupLoginForm() {
   });
 }
 
-async function setupRegisterForm() { /* ... (content as before) ... */ }
+async function setupRegisterForm() { }
 
 function setupFileUpload() {
   console.log('[DEBUG] main.js setupFileUpload: Called.');
@@ -274,10 +274,10 @@ function setupFileUpload() {
     if (!file.type.startsWith('image/')) { alert('File harus gambar.'); return; }
     if (file.size > 10 * 1024 * 1024) { alert('Maksimal 10MB.'); return; }
 
-    // Call handleClassification from predict.js
+    
     handleClassification(file, '#klasifikasi .submit-btn');
-    // Note: handleClassification now manages button state and error display internally.
-    // No need for try-catch or finally block here to manage button text/disabled state.
+    
+    
   });
   setupFileUpload.initialized = true;
   console.log('[DEBUG] main.js setupFileUpload: Event listeners configured.');
@@ -292,8 +292,8 @@ function updateUploadArea(file) {
   }
 }
 
-// displayClassificationResult is removed as per instructions.
-// Its functionality is now part of handleClassification in predict.js
+
+
 
 function checkAuthStatus() { return !!(localStorage.getItem('access_token') && localStorage.getItem('refresh_token')); }
 function logout() {
