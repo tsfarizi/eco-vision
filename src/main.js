@@ -236,7 +236,53 @@ function setupLoginForm() {
   });
 }
 
-async function setupRegisterForm() { }
+async function setupRegisterForm() {
+  const form = document.getElementById('register-form');
+  const nameInput = document.getElementById('register-name');
+  const emailInput = document.getElementById('register-email');
+  const passwordInput = document.getElementById('register-password');
+  const warning = document.getElementById('register-email-warning');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = nameInput?.value?.trim() || '';
+    const email = emailInput?.value?.trim() || '';
+    const password = passwordInput?.value || '';
+    if (!name || !email || !password) { warning.textContent = 'Semua field harus diisi.'; return; }
+    if (!isValidEmail(email)) { warning.textContent = 'Gunakan email yang valid.'; return; }
+
+    try {
+      warning.textContent = '';
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.textContent = 'Registering...';
+      submitBtn.disabled = true;
+
+      const response = await register(name, email, password);
+
+      if (response && response.access_token && response.refresh_token) {
+        localStorage.setItem('access_token', response.access_token);
+        localStorage.setItem('refresh_token', response.refresh_token);
+        if (response.user) {
+          localStorage.setItem('user_info', JSON.stringify(response.user));
+        }
+      }
+
+      form.reset();
+      showPage('main-app');
+
+    } catch (err) {
+      warning.textContent = err.message || 'Registrasi gagal.';
+    } finally {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.textContent = 'Sign Up';
+        submitBtn.disabled = false;
+      }
+    }
+  });
+}
 
 function setupFileUpload() {
   console.log('[DEBUG] main.js setupFileUpload: Called.');
