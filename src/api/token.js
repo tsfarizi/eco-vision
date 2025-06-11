@@ -1,6 +1,6 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Ambil token dari localStorage
+
 export function getAccessToken() {
   return localStorage.getItem("access_token");
 }
@@ -14,7 +14,7 @@ export function getUserInfo() {
   return userInfo ? JSON.parse(userInfo) : null;
 }
 
-// Simpan token ke localStorage
+
 export function saveTokens(access_token, refresh_token, user = null) {
   localStorage.setItem("access_token", access_token);
   localStorage.setItem("refresh_token", refresh_token);
@@ -24,7 +24,7 @@ export function saveTokens(access_token, refresh_token, user = null) {
   }
 }
 
-// Hapus semua token (misalnya saat logout)
+
 export function clearTokens() {
   console.log('[DEBUG] clearTokens: Clearing all tokens from localStorage.');
   localStorage.removeItem("access_token");
@@ -32,20 +32,20 @@ export function clearTokens() {
   localStorage.removeItem("user_info");
 }
 
-// Cek apakah user sudah login
+
 export function isAuthenticated() {
   const accessToken = getAccessToken();
   const refreshToken = getRefreshToken();
   return !!(accessToken && refreshToken);
 }
 
-// Tambahkan Authorization Header ke request
+
 export function authHeader() {
   const token = getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Fungsi untuk refresh access token
+
 export async function refreshAccessToken() {
   const refresh = getRefreshToken();
 
@@ -60,7 +60,7 @@ export async function refreshAccessToken() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json" // Added Accept header
+        "Accept": "application/json" 
       },
       body: JSON.stringify({ refresh })
     });
@@ -72,10 +72,10 @@ export async function refreshAccessToken() {
         let rawErrorResponse = '';
 
         try {
-            // Attempt to parse as JSON first
-            // response.json() consumes the body. If it fails, we can't re-read as text from original `response` easily.
-            // Cloning is safer if we anticipate needing to read the body multiple ways.
-            const clonedResponse = response.clone(); // Clone for potential multiple reads
+            
+            
+            
+            const clonedResponse = response.clone(); 
             const errorData = await response.json();
             console.log('[DEBUG] refreshAccessToken: Parsed JSON error data from /auth/refresh:', errorData);
 
@@ -91,15 +91,15 @@ export async function refreshAccessToken() {
         } catch (jsonError) {
             console.error('[DEBUG] refreshAccessToken: Failed to parse error response from /auth/refresh as JSON.', jsonError);
             try {
-                // If JSON parsing failed, try to get the raw text from the *cloned* response
-                rawErrorResponse = await (response.clone()).text(); // Use a new clone from original 'response' if first .json() on original failed and disturbed it.
-                                                                 // Or use the first clone if .json() was on the clone.
-                                                                 // Safest: use a fresh clone of the original `response` if available or the first clone if .json() was on it.
-                                                                 // The initial `response.clone()` was not used by `response.json()`. Let's assume `response.json()` was on original.
-                                                                 // So, we use `response.text()` on the original `response` object if `.json()` failed.
-                                                                 // If `response.json()` was actually on `clonedResponse`, then we'd use `clonedResponse.text()`.
-                                                                 // The prompt implies `response.json()` is on original.
-                rawErrorResponse = await response.text(); // Try reading the original response as text
+                
+                rawErrorResponse = await (response.clone()).text(); 
+                                                                 
+                                                                 
+                                                                 
+                                                                 
+                                                                 
+                                                                 
+                rawErrorResponse = await response.text(); 
                 console.log('[DEBUG] refreshAccessToken: Raw error response text (first 500 chars):', rawErrorResponse.substring(0, 500));
             } catch (textError) {
                 console.error('[DEBUG] refreshAccessToken: Failed to get raw text from error response.', textError);
@@ -126,10 +126,10 @@ export async function refreshAccessToken() {
         throw new Error("Gagal refresh token: Respons tidak mengandung access token baru.");
     }
     
-    // NOTE: The /auth/refresh endpoint currently only returns a new access token.
-    // It does not return updated user information or a new refresh token.
-    // Therefore, only the access_token in localStorage is updated here.
-    // User information and the refresh token are only fully updated upon login/register.
+    
+    
+    
+    
     localStorage.setItem("access_token", data.access);
     console.log('[DEBUG] refreshAccessToken: Token refreshed successfully. New access token obtained.');
     return data.access;
@@ -145,7 +145,7 @@ export async function refreshAccessToken() {
   }
 }
 
-// Fungsi untuk cek apakah token akan expired (optional)
+
 export function isTokenExpiring() {
   const token = getAccessToken();
   if (!token) return true;
