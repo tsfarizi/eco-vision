@@ -1,21 +1,18 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Explicitly import marker images for Vite to handle
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
-// Set default icon options
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: iconRetinaUrl,
   iconUrl: iconUrl,
   shadowUrl: shadowUrl,
 });
 
-// Marker Style Options for CircleMarkers
 const wasteBankMarkerOptions = {
-  radius: 12, // New value
+  radius: 12, 
   fillColor: "#28a745",
   color: "#000",
   weight: 1,
@@ -24,52 +21,44 @@ const wasteBankMarkerOptions = {
 };
 
 const trashCanMarkerOptions = {
-  radius: 7, // Slightly different radius to help differentiate if colors are hard to see
-  fillColor: "#007bff", // Blue color for trash cans
+  radius: 7, 
+  fillColor: "#007bff", 
   color: "#000",
   weight: 1,
   opacity: 1,
   fillOpacity: 0.8
 };
 
-import { fetchWithAuth, handleResponse } from './fetchWithAuth.js'; // Updated import
+import { fetchWithAuth, handleResponse } from './fetchWithAuth.js'; 
 import { handleClassification as processImageClassification } from './predict.js';
-import { fetchTrashCans } from './trashCans.js'; // Import for trash cans
+import { fetchTrashCans } from './trashCans.js'; 
 
-// const BASE_URL = import.meta.env.VITE_API_BASE_URL; // No longer needed directly here for these functions
-
-// Fungsi untuk ambil daftar bank sampah
 export async function fetchWasteBanks() {
   try {
     const response = await fetchWithAuth('/waste-banks', { method: 'GET' });
     return await handleResponse(response);
   } catch (err) {
-    console.error("Error fetch waste banks:", err.message); // Log err.message
-    throw err; // Re-throw the error object itself
+    console.error("Error fetch waste banks:", err.message);
+    throw err; 
   }
 }
 
-// Fungsi untuk tambah bank sampah baru
 export async function addWasteBank(bankData) {
   try {
     const response = await fetchWithAuth('/waste-banks', {
       method: 'POST',
       body: JSON.stringify(bankData)
-      // Content-Type: application/json is handled by fetchWithAuth
+     
     });
     return await handleResponse(response);
   } catch (error) {
-    // handleResponse will throw an error with a message (e.g., from error.detail or a generic one)
-    console.error("Error adding waste bank:", error.message); // Log err.message
-    // Re-throw the error object itself, which should contain a message
-    // UI can then display error.message directly
+    console.error("Error adding waste bank:", error.message); 
     throw error;
   }
 }
 
-// ===== DRAG & DROP CLASSIFICATION (selectedFile is used here) =====
 let selectedFile = null;
-let map = null; // Leaflet map instance
+let map = null; 
 
 export function initializeDragAndDrop() {
   console.log('[DEBUG] initializeDragAndDrop: Called');
@@ -121,7 +110,6 @@ export function initializeDragAndDrop() {
   }
 }
 
-// ===== LEAFLET MAP =====
 export function initializeMap() {
   console.log('[DEBUG] initializeMap: Called');
   const mapPlaceholder = document.querySelector('.map-placeholder');
@@ -141,9 +129,9 @@ export function initializeMap() {
       console.log('[DEBUG] initializeMap: Leaflet map initialized.');
       loadMapMarkers();
       setTimeout(() => {
-        if(map) map.invalidateSize(); // Initial invalidate after setup
+        if(map) map.invalidateSize(); 
         console.log('[DEBUG] initializeMap: map.invalidateSize() called post initial load.');
-      }, 250); // This delay might be for initial rendering
+      }, 250); 
     } catch (error) {
       console.error('[DEBUG] initializeMap: Error during Leaflet map initialization:', error);
       const mapDiv = document.getElementById('waste-bank-map');
@@ -156,9 +144,8 @@ export function initializeMap() {
 
 async function loadMapMarkers() {
   console.log('[DEBUG] loadMapMarkers: Initializing. Attempting to load Waste Banks and Trash Cans.');
-  const allMarkersArray = []; // Temporary array to hold marker instances
+  const allMarkersArray = []; 
 
-  // Fetch and add Waste Bank Markers
   try {
     const wasteBanks = await fetchWasteBanks();
     console.log('[DEBUG] loadMapMarkers: Fetched waste banks (raw):', wasteBanks);
@@ -194,7 +181,6 @@ async function loadMapMarkers() {
     console.error('[DEBUG] loadMapMarkers: Error loading waste bank markers:', error);
   }
 
-  // Fetch and add Trash Can Markers
   try {
     const trashCans = await fetchTrashCans();
     console.log('[DEBUG] loadMapMarkers: Fetched trash cans (raw):', trashCans);
@@ -224,24 +210,21 @@ async function loadMapMarkers() {
   console.log('[DEBUG] loadMapMarkers: Finalizing. Total markers in allMarkersArray before adding to group:', allMarkersArray.length);
 
   if (allMarkersArray.length > 0) {
-    const group = L.featureGroup(allMarkersArray).addTo(map); // Add markers to map
+    const group = L.featureGroup(allMarkersArray).addTo(map); 
     console.log('[DEBUG] loadMapMarkers: Feature group created and added to map. Layers in group:', group.getLayers().length);
     console.log('[DEBUG] loadMapMarkers: Attempting to fitBounds. Bounds object:', group.getBounds());
     map.fitBounds(group.getBounds().pad(0.1));
   } else {
     console.log('[DEBUG] loadMapMarkers: No markers (waste banks or trash cans) to display.');
-    // Default marker if no data
-    if (map) { // Ensure map is initialized before adding default marker
+    if (map) { 
         const defaultMarker = L.marker([-6.2088, 106.8456]).addTo(map);
         defaultMarker.bindPopup('<div style="font-size: 12px;">Tidak ada data bank sampah atau tempat sampah yang dapat ditampilkan.</div>');
         map.setView([-6.2088, 106.8456], 12);
     }
   }
 
-  // The existing log about allMarkersArray.length is replaced by the new one before this block.
-  // map.invalidateSize() should be called after all map operations.
   if (map) {
-    map.invalidateSize(true); // Ensure map re-evaluates its size
+    map.invalidateSize(true); 
     console.log('[DEBUG] loadMapMarkers: Called map.invalidateSize(true) at the end of function.');
   } else {
     console.warn('[DEBUG] loadMapMarkers: Map object not available at the end of function for invalidateSize.');
@@ -251,7 +234,7 @@ async function loadMapMarkers() {
 export function resizeMap() {
   if (map) {
     console.log('[DEBUG] resizeMap: Called. Invalidating map size.');
-    setTimeout(() => map.invalidateSize(true), 100); // Added true to pan to center
+    setTimeout(() => map.invalidateSize(true), 100); 
   } else {
     console.log('[DEBUG] resizeMap: Called, but map instance is not available.');
   }
