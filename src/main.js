@@ -6,58 +6,74 @@ import { fetchWasteBanks } from './api/wasteBanks.js';
 window.showPage = showPage;
 window.showSection = showSection;
 
-function showPage(pageId) {
-  document.querySelectorAll('.page').forEach(page => {
-    page.classList.remove('active');
-  });
+// Global state to prevent recursive calls
+let isNavigating = false;
 
-  const targetPage = document.getElementById(pageId);
-  if (targetPage) {
-    targetPage.classList.add('active');
-    
-    // FIXED: Load content hanya untuk main-app dan tidak recursive
-    if (pageId === 'main-app') {
-      loadMainAppContent();
+function showPage(pageId) {
+  if (isNavigating) return;
+  isNavigating = true;
+  
+  try {
+    document.querySelectorAll('.page').forEach(page => {
+      page.classList.remove('active');
+    });
+
+    const targetPage = document.getElementById(pageId);
+    if (targetPage) {
+      targetPage.classList.add('active');
+      
+      // Only load content for main-app without triggering navigation
+      if (pageId === 'main-app') {
+        loadMainAppContent();
+      }
+    } else {
+      const fallback = document.getElementById('not-found-page');
+      if (fallback) fallback.classList.add('active');
+      console.warn(`Page '${pageId}' not found`);
     }
-  } else {
-    const fallback = document.getElementById('not-found-page');
-    if (fallback) fallback.classList.add('active');
-    console.warn(`Page '${pageId}' not found`);
+  } finally {
+    isNavigating = false;
   }
 }
 
 function showSection(sectionId) {
-  // FIXED: Langsung handle section tanpa recursive call ke showPage
-  const mainApp = document.getElementById('main-app');
-  if (!mainApp || !mainApp.classList.contains('active')) {
-    // Langsung aktivkan main-app tanpa memanggil showPage
-    document.querySelectorAll('.page').forEach(page => {
-      page.classList.remove('active');
-    });
-    if (mainApp) {
-      mainApp.classList.add('active');
+  if (isNavigating) return;
+  isNavigating = true;
+  
+  try {
+    // Ensure main-app is active WITHOUT calling showPage
+    const mainApp = document.getElementById('main-app');
+    if (!mainApp || !mainApp.classList.contains('active')) {
+      document.querySelectorAll('.page').forEach(page => {
+        page.classList.remove('active');
+      });
+      if (mainApp) {
+        mainApp.classList.add('active');
+      }
     }
-  }
-  
-  // Hide all sections first
-  document.querySelectorAll('.section').forEach(section => {
-    section.classList.remove('active');
-  });
-  
-  // Show target section
-  let targetSection = document.getElementById(sectionId);
-  if (!targetSection) {
-    // Create section if not exists
-    targetSection = createSection(sectionId);
-  }
-  
-  if (targetSection) {
-    targetSection.classList.add('active');
-  }
+    
+    // Hide all sections first
+    document.querySelectorAll('.section').forEach(section => {
+      section.classList.remove('active');
+    });
+    
+    // Show target section
+    let targetSection = document.getElementById(sectionId);
+    if (!targetSection) {
+      // Create section if not exists
+      targetSection = createSection(sectionId);
+    }
+    
+    if (targetSection) {
+      targetSection.classList.add('active');
+    }
 
-  // Load section-specific content
-  if (sectionId === 'bank-sampah') {
-    loadWasteBanks();
+    // Load section-specific content
+    if (sectionId === 'bank-sampah') {
+      loadWasteBanks();
+    }
+  } finally {
+    isNavigating = false;
   }
 }
 
@@ -236,12 +252,12 @@ function createBankSampahContent() {
   `;
 }
 
-// FIXED: Simplified loadMainAppContent tanpa recursive calls
+// COMPLETELY REWRITTEN: No recursive calls
 function loadMainAppContent() {
-  // Cek apakah sudah ada section aktif
+  // Check if any section is already active
   const activeSections = document.querySelectorAll('.section.active');
   if (activeSections.length === 0) {
-    // Langsung buat dan aktifkan beranda section
+    // Create and show beranda section directly
     let berandaSection = document.getElementById('beranda');
     if (!berandaSection) {
       berandaSection = createSection('beranda');
@@ -321,10 +337,8 @@ function setupLoginForm() {
 
       form.reset();
       
-      // FIXED: Direct navigation without recursive calls
+      // Navigate to main app
       showPage('main-app');
-      // Wait a bit then show beranda section
-      setTimeout(() => showSection('beranda'), 100);
       
     } catch (err) {
       warning.textContent = err.message || 'Email atau password salah.';
@@ -399,7 +413,6 @@ function setupRegisterForm() {
         // Show success message and redirect to main app
         alert('🎉 Registrasi berhasil! Selamat datang di EcoVision!');
         showPage('main-app');
-        setTimeout(() => showSection('beranda'), 100);
       } else {
         // Manual login required
         alert('Registrasi berhasil! Silakan login untuk melanjutkan.');
@@ -569,22 +582,20 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPasswordToggle();
   setupLoginForm();
   setupRegisterForm();
+  setupNavigationStates();
   
   // Setup file upload dengan delay untuk memastikan DOM ready
   setTimeout(() => {
     setupFileUpload();
   }, 100);
 
+  // Initial navigation
   if (checkAuthStatus()) {
     console.log('User already authenticated');
     showPage('main-app');
-    // FIXED: Add delay to prevent recursive calls
-    setTimeout(() => showSection('beranda'), 100);
   } else {
     showPage('landing-page');
   }
-
-  setupNavigationStates();
 });
 
 // Global error handlers
