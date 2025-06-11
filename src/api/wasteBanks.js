@@ -1,8 +1,5 @@
-import { authHeader, refreshAccessToken } from './token.js';
+import { authHeader, refreshAccessToken, getRefreshToken } from './token.js';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-// Fungsi untuk ambil daftar bank sampah
 export async function fetchWasteBanks() {
   async function sendRequest() {
     return await fetch(`${BASE_URL}/waste-banks/`, {
@@ -18,6 +15,11 @@ export async function fetchWasteBanks() {
     let res = await sendRequest();
 
     if (res.status === 401) {
+      // 🔐 Tambahkan pengecekan refresh token dulu
+      if (!getRefreshToken()) {
+        throw new Error('Sesi Anda telah habis. Silakan login kembali.');
+      }
+
       await refreshAccessToken();
       res = await sendRequest();
     }
@@ -27,14 +29,14 @@ export async function fetchWasteBanks() {
       throw new Error(errData.message || 'Gagal mengambil data bank sampah');
     }
 
-    const data = await res.json();
-    return data;
+    return await res.json();
 
   } catch (err) {
     console.error("Error fetch waste banks:", err);
     throw err;
   }
 }
+
 
 // ===== DRAG & DROP CLASSIFICATION =====
 let selectedFile = null;
