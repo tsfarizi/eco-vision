@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Ambil token dari localStorage
 export function getAccessToken() {
@@ -49,8 +49,21 @@ export async function refreshAccessToken() {
   const refresh = getRefreshToken();
 
   if (!refresh) {
-    clearTokens(); // Clear semua token jika refresh token tidak ada
-    throw new Error("Refresh token tidak tersedia. Silakan login kembali.");
+    console.warn("Refresh token tidak tersedia");
+    clearTokens();
+    
+    // Safe navigation - check if showPage function exists
+    if (typeof window !== 'undefined' && typeof window.showPage === 'function') {
+      window.showPage('signin-page');
+    } else if (typeof showPage === 'function') {
+      showPage('signin-page');
+    } else {
+      // Fallback - reload page
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    }
+    return null;
   }
 
   try {
@@ -62,20 +75,44 @@ export async function refreshAccessToken() {
       body: JSON.stringify({ refresh })
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      clearTokens(); // Clear semua token jika refresh gagal
-      throw new Error(data.detail || data.message || "Gagal refresh token. Silakan login kembali.");
+      console.warn("Refresh token gagal, status:", response.status);
+      clearTokens();
+      
+      // Safe navigation
+      if (typeof window !== 'undefined' && typeof window.showPage === 'function') {
+        window.showPage('signin-page');
+      } else if (typeof showPage === 'function') {
+        showPage('signin-page');
+      } else {
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
+      }
+      return null;
     }
 
+    const data = await response.json();
+    
     // Simpan access token baru, refresh token tetap sama
     localStorage.setItem("access_token", data.access);
     
     return data.access;
   } catch (error) {
-    clearTokens(); // Clear semua token jika ada error
-    throw new Error("Gagal refresh token. Silakan login kembali.");
+    console.error("Error saat refresh token:", error);
+    clearTokens();
+    
+    // Safe navigation
+    if (typeof window !== 'undefined' && typeof window.showPage === 'function') {
+      window.showPage('signin-page');
+    } else if (typeof showPage === 'function') {
+      showPage('signin-page');
+    } else {
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    }
+    return null;
   }
 }
 
@@ -95,4 +132,18 @@ export function isTokenExpiring() {
     console.error("Error checking token expiry:", error);
     return true; // Anggap expired jika error
   }
+}
+
+// Fungsi untuk automatic token refresh
+export async function ensureValidToken() {
+  if (!isAuthenticated()) {
+    return null;
+  }
+
+  if (isTokenExpiring()) {
+    console.log("Token akan expired, melakukan refresh...");
+    return await refreshAccessToken();
+  }
+
+  return getAccessToken();
 }
