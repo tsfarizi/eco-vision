@@ -1,7 +1,9 @@
 import './styles/styles.css';
 import { login, register } from './api/auth.js';
 import { classifyImage } from './api/predict.js';
-import { fetchWasteBanks } from './api/wasteBanks.js';
+import { initializeWasteBankFeatures } from './api/wasteBanks.js';
+import { getRefreshToken } from './api/token.js';
+
 
 window.showPage = showPage;
 window.showSection = showSection;
@@ -531,9 +533,18 @@ function displayClassificationResult(result) {
   container.insertBefore(resultDiv, container.querySelector('.upload-area'));
 }
 
+import { getRefreshToken } from './api/token.js'; // pastikan ini ada di bagian atas
+
 async function loadWasteBanks() {
   const container = document.getElementById('bank-sampah-content');
   if (!container) return;
+
+ 
+  if (!getRefreshToken()) {
+    alert("Sesi Anda telah habis. Silakan login kembali.");
+    logout();
+    return;
+  }
 
   try {
     container.innerHTML = 'Memuat data...';
@@ -548,11 +559,16 @@ async function loadWasteBanks() {
     } else {
       container.innerHTML = 'Tidak ada data tersedia.';
     }
+
+    initializeWasteBankFeatures(); // aktifkan peta & drag-drop
+
   } catch (error) {
     console.error('Error loading waste banks:', error);
     container.innerHTML = 'Gagal memuat data.';
   }
 }
+
+
 
 function checkAuthStatus() {
   return localStorage.getItem('access_token') && localStorage.getItem('refresh_token');
