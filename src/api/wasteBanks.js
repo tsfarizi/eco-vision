@@ -43,16 +43,18 @@ let map = null;
 // Initialize drag & drop functionality
 export function initializeDragAndDrop() {
   const uploadArea = document.querySelector('.upload-area');
+  
+  if (!uploadArea) {
+    console.error('Upload area not found - pastikan element dengan class .upload-area ada di HTML');
+    return;
+  }
+
+  // Create hidden file input
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.accept = 'image/*';
   fileInput.style.display = 'none';
   document.body.appendChild(fileInput);
-
-  if (!uploadArea) {
-    console.error('Upload area not found');
-    return;
-  }
 
   // Prevent default drag behaviors
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -121,6 +123,7 @@ export function initializeDragAndDrop() {
 
       selectedFile = file;
       displayPreview(file);
+      console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
     }
   }
 
@@ -129,14 +132,36 @@ export function initializeDragAndDrop() {
     reader.onload = function(e) {
       uploadArea.innerHTML = `
         <div class="upload-preview">
-          <img src="${e.target.result}" alt="Preview" style="max-width: 200px; max-height: 150px; border-radius: 8px;">
-          <p style="margin-top: 10px; font-size: 14px; color: #333;">${file.name}</p>
+          <img src="${e.target.result}" alt="Preview" style="max-width: 200px; max-height: 150px; border-radius: 8px; object-fit: cover;">
+          <p style="margin-top: 10px; font-size: 14px; color: #333; font-weight: 500;">${file.name}</p>
           <p style="font-size: 12px; color: #666;">Klik "Klasifikasi" untuk menganalisis gambar</p>
+          <button onclick="clearSelectedFile()" style="
+            margin-top: 8px;
+            padding: 5px 10px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+          ">Hapus</button>
         </div>
       `;
     };
     reader.readAsDataURL(file);
   }
+
+  // Global function to clear selected file
+  window.clearSelectedFile = function() {
+    selectedFile = null;
+    uploadArea.innerHTML = `
+      <div class="upload-content">
+        <i class="bi bi-cloud-upload" style="font-size: 2rem; color: #4caf50;"></i>
+        <p>Drop gambar disini atau klik untuk memilih</p>
+        <p style="font-size: 12px; color: #666;">Mendukung JPG, PNG (Max 5MB)</p>
+      </div>
+    `;
+  };
 }
 
 // Handle classification submission
@@ -147,6 +172,11 @@ export async function handleClassification() {
   }
 
   const submitBtn = document.querySelector('.submit-btn');
+  if (!submitBtn) {
+    console.error('Submit button not found');
+    return;
+  }
+
   const originalText = submitBtn.textContent;
   
   try {
@@ -158,38 +188,35 @@ export async function handleClassification() {
     const formData = new FormData();
     formData.append('image', selectedFile);
 
-    // Send to prediction API
-    const response = await fetch(`${BASE_URL}/predict`, {
-      method: 'POST',
-      headers: {
-        ...authHeader()
-      },
-      body: formData
-    });
+    console.log('Sending classification request...');
 
-    if (response.status === 401) {
-      await refreshAccessToken();
-      // Retry request
-      const retryResponse = await fetch(`${BASE_URL}/predict`, {
+    // Send to prediction API with retry logic
+    async function sendPredictionRequest() {
+      return await fetch(`${BASE_URL}/predict`, {
         method: 'POST',
         headers: {
           ...authHeader()
         },
         body: formData
       });
-      
-      if (!retryResponse.ok) {
-        throw new Error('Gagal melakukan klasifikasi sampah');
-      }
-      
-      const result = await retryResponse.json();
-      displayClassificationResult(result);
-    } else if (response.ok) {
-      const result = await response.json();
-      displayClassificationResult(result);
-    } else {
-      throw new Error('Gagal melakukan klasifikasi sampah');
     }
+
+    let response = await sendPredictionRequest();
+
+    if (response.status === 401) {
+      console.log('Token expired, refreshing...');
+      await refreshAccessToken();
+      response = await sendPredictionRequest();
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(errorData.message || `HTTP ${response.status}: Gagal melakukan klasifikasi`);
+    }
+
+    const result = await response.json();
+    console.log('Classification result:', result);
+    displayClassificationResult(result);
 
   } catch (error) {
     console.error('Classification error:', error);
@@ -202,7 +229,13 @@ export async function handleClassification() {
 }
 
 function displayClassificationResult(result) {
-  // Create result modal or section
+  // Remove existing modal if any
+  const existingResult = document.querySelector('.classification-result');
+  const existingBackdrop = document.querySelector('.modal-backdrop');
+  if (existingResult) existingResult.remove();
+  if (existingBackdrop) existingBackdrop.remove();
+
+  // Create result modal
   const resultHTML = `
     <div class="classification-result" style="
       position: fixed;
@@ -217,19 +250,23 @@ function displayClassificationResult(result) {
       max-width: 400px;
       text-align: center;
     ">
-      <h3 style="margin-bottom: 15px; color: #4caf50;">Hasil Klasifikasi</h3>
-      <p><strong>Jenis Sampah:</strong> ${result.category || 'Tidak terdeteksi'}</p>
-      <p><strong>Tingkat Kepercayaan:</strong> ${result.confidence ? (result.confidence * 100).toFixed(1) + '%' : 'N/A'}</p>
+      <h3 style="margin-bottom: 15px; color: #4caf50;">🎯 Hasil Klasifikasi</h3>
+      <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+        <p style="margin: 5px 0;"><strong>Jenis Sampah:</strong> <span style="color: #4caf50;">${result.category || result.predicted_class || 'Tidak terdeteksi'}</span></p>
+        <p style="margin: 5px 0;"><strong>Tingkat Kepercayaan:</strong> ${result.confidence ? (result.confidence * 100).toFixed(1) + '%' : result.confidence_score ? (result.confidence_score * 100).toFixed(1) + '%' : 'N/A'}</p>
+      </div>
       <div style="margin: 20px 0;">
-        <p style="font-size: 14px; color: #666;">${getWasteDescription(result.category)}</p>
+        <p style="font-size: 14px; color: #666; line-height: 1.4;">${getWasteDescription(result.category || result.predicted_class)}</p>
       </div>
       <button onclick="closeClassificationResult()" style="
         background-color: #4caf50;
         color: white;
         border: none;
-        padding: 10px 20px;
+        padding: 12px 24px;
         border-radius: 6px;
         cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
       ">Tutup</button>
     </div>
     <div class="modal-backdrop" onclick="closeClassificationResult()" style="
@@ -248,13 +285,15 @@ function displayClassificationResult(result) {
 
 function getWasteDescription(category) {
   const descriptions = {
-    'organic': 'Sampah organik dapat dikompos menjadi pupuk alami',
-    'plastic': 'Sampah plastik dapat didaur ulang menjadi produk baru',
-    'paper': 'Sampah kertas dapat didaur ulang menjadi kertas baru',
-    'metal': 'Sampah logam memiliki nilai ekonomi tinggi untuk didaur ulang',
-    'glass': 'Sampah kaca dapat didaur ulang berkali-kali tanpa kehilangan kualitas'
+    'organic': '🌱 Sampah organik dapat dikompos menjadi pupuk alami untuk tanaman',
+    'plastic': '♻️ Sampah plastik dapat didaur ulang menjadi produk baru yang berguna',
+    'paper': '📄 Sampah kertas dapat didaur ulang menjadi kertas baru berkualitas',
+    'metal': '🔧 Sampah logam memiliki nilai ekonomi tinggi untuk didaur ulang',
+    'glass': '🏺 Sampah kaca dapat didaur ulang berkali-kali tanpa kehilangan kualitas',
+    'cardboard': '📦 Sampah kardus mudah didaur ulang menjadi produk kertas baru',
+    'clothes': '👕 Sampah tekstil bisa didonasikan atau didaur ulang menjadi kain baru'
   };
-  return descriptions[category] || 'Pastikan sampah dibuang pada tempat yang sesuai';
+  return descriptions[category?.toLowerCase()] || '♻️ Pastikan sampah dibuang pada tempat yang sesuai untuk menjaga lingkungan';
 }
 
 // Global function to close result modal
@@ -267,92 +306,159 @@ window.closeClassificationResult = function() {
 
 // ===== LEAFLET MAP =====
 export function initializeMap() {
+  // Check if Leaflet is loaded
+  if (typeof L === 'undefined') {
+    console.error('Leaflet library not loaded. Add this to your HTML head:');
+    console.error('<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />');
+    console.error('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>');
+    return;
+  }
+
   // Check if we're on the bank sampah page and map container exists
-  const mapContainer = document.querySelector('.map-placeholder');
+  const mapContainer = document.querySelector('.map-placeholder') || document.querySelector('#map-container');
   if (!mapContainer) {
-    console.log('Map container not found');
+    console.log('Map container not found - pastikan ada element dengan class .map-placeholder atau #map-container');
     return;
   }
 
   // Replace placeholder with actual map div
-  mapContainer.innerHTML = '<div id="waste-bank-map" style="width: 100%; height: 140px; border-radius: 8px;"></div>';
+  mapContainer.innerHTML = '<div id="waste-bank-map" style="width: 100%; height: 300px; border-radius: 8px; border: 1px solid #ddd;"></div>';
   
   // Wait a bit for DOM to update
   setTimeout(() => {
     try {
-      // Initialize map centered on Jakarta (you can change this)
+      // Initialize map centered on Jakarta
       map = L.map('waste-bank-map', {
         zoomControl: true,
-        scrollWheelZoom: false
-      }).setView([-6.2088, 106.8456], 12);
+        scrollWheelZoom: true,
+        doubleClickZoom: true,
+        dragging: true
+      }).setView([-6.2088, 106.8456], 11);
 
       // Add OpenStreetMap tiles
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 18
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 18,
+        minZoom: 8
       }).addTo(map);
+
+      console.log('Map initialized successfully');
 
       // Load and display waste banks
       loadWasteBankMarkers();
 
-      // Fix map size issue
+      // Fix map size issue after initialization
       setTimeout(() => {
         map.invalidateSize();
-      }, 250);
+        console.log('Map size invalidated');
+      }, 500);
 
     } catch (error) {
       console.error('Error initializing map:', error);
       document.getElementById('waste-bank-map').innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">
+        <div style="
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          height: 100%; 
+          color: #666;
+          flex-direction: column;
+          background: #f9f9f9;
+          border-radius: 8px;
+        ">
+          <i class="bi bi-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
           <p>Gagal memuat peta</p>
+          <p style="font-size: 12px;">Pastikan koneksi internet stabil</p>
         </div>
       `;
     }
-  }, 100);
+  }, 200);
 }
 
 async function loadWasteBankMarkers() {
   try {
+    console.log('Loading waste bank markers...');
     const wasteBanks = await fetchWasteBanks();
+    console.log('Fetched waste banks:', wasteBanks);
     
-    if (wasteBanks && wasteBanks.length > 0) {
-      wasteBanks.forEach(bank => {
-        if (bank.latitude && bank.longitude) {
-          const marker = L.marker([bank.latitude, bank.longitude]).addTo(map);
-          
-          // Create popup content
-          const popupContent = `
-            <div style="font-size: 12px;">
-              <strong>${bank.name}</strong><br>
-              ${bank.address || 'Alamat tidak tersedia'}<br>
-              ${bank.phone ? `Telp: ${bank.phone}` : ''}
-            </div>
-          `;
-          
-          marker.bindPopup(popupContent);
+    if (wasteBanks && Array.isArray(wasteBanks) && wasteBanks.length > 0) {
+      let markersAdded = 0;
+      const markers = [];
+
+      wasteBanks.forEach((bank, index) => {
+        // Check for different possible latitude/longitude field names
+        const lat = bank.latitude || bank.lat || bank.y;
+        const lng = bank.longitude || bank.lng || bank.lon || bank.x;
+        
+        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+          try {
+            const marker = L.marker([parseFloat(lat), parseFloat(lng)]).addTo(map);
+            markers.push(marker);
+            
+            // Create popup content - adjust based on your API response structure
+            const popupContent = `
+              <div style="font-size: 13px; max-width: 200px;">
+                <strong style="color: #4caf50;">${bank.name || bank.nama || 'Bank Sampah'}</strong><br>
+                <div style="margin: 8px 0;">
+                  <i class="bi bi-geo-alt"></i> ${bank.address || bank.alamat || 'Alamat tidak tersedia'}
+                </div>
+                ${bank.phone || bank.telepon ? `<div><i class="bi bi-telephone"></i> ${bank.phone || bank.telepon}</div>` : ''}
+                ${bank.opening_hours ? `<div style="margin-top: 5px;"><i class="bi bi-clock"></i> ${bank.opening_hours}</div>` : ''}
+                ${bank.waste_processed && bank.waste_processed.length > 0 ? `<div style="margin-top: 5px;"><small>Jenis sampah: ${bank.waste_processed.join(', ')}</small></div>` : ''}
+              </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            markersAdded++;
+            
+            console.log(`Marker ${index + 1} added:`, { name: bank.name, lat, lng });
+          } catch (markerError) {
+            console.error(`Error adding marker ${index + 1}:`, markerError, bank);
+          }
+        } else {
+          console.warn(`Bank ${index + 1} missing valid coordinates:`, { lat, lng, bank });
         }
       });
       
-      // If we have banks, fit map to show all markers
-      if (wasteBanks.some(bank => bank.latitude && bank.longitude)) {
-        const group = new L.featureGroup(
-          wasteBanks
-            .filter(bank => bank.latitude && bank.longitude)
-            .map(bank => L.marker([bank.latitude, bank.longitude]))
-        );
-        map.fitBounds(group.getBounds().pad(0.1));
+      console.log(`Added ${markersAdded} markers to map`);
+      
+      // If we have markers, fit map to show all markers
+      if (markers.length > 0) {
+        const group = new L.featureGroup(markers);
+        const bounds = group.getBounds();
+        if (bounds.isValid()) {
+          map.fitBounds(bounds.pad(0.1));
+        }
       }
     } else {
-      // Add default marker for demo
+      console.log('No waste banks data or empty array, adding demo marker');
+      // Add default demo marker
       const defaultMarker = L.marker([-6.2088, 106.8456]).addTo(map);
-      defaultMarker.bindPopup('<div style="font-size: 12px;"><strong>Bank Sampah Demo</strong><br>Jakarta Pusat</div>');
+      defaultMarker.bindPopup(`
+        <div style="font-size: 13px;">
+          <strong style="color: #4caf50;">🏢 Bank Sampah Demo</strong><br>
+          <div style="margin: 8px 0;">
+            <i class="bi bi-geo-alt"></i> Jakarta Pusat, DKI Jakarta
+          </div>
+          <div><i class="bi bi-telephone"></i> (021) 1234-5678</div>
+          <div style="margin-top: 5px;"><i class="bi bi-clock"></i> 08:00 - 16:00</div>
+        </div>
+      `);
     }
     
   } catch (error) {
     console.error('Error loading waste bank markers:', error);
     // Add default marker on error
     const defaultMarker = L.marker([-6.2088, 106.8456]).addTo(map);
-    defaultMarker.bindPopup('<div style="font-size: 12px;"><strong>Bank Sampah Demo</strong><br>Lokasi tidak dapat dimuat</div>');
+    defaultMarker.bindPopup(`
+      <div style="font-size: 13px;">
+        <strong style="color: #f44336;">⚠️ Bank Sampah Demo</strong><br>
+        <div style="margin: 8px 0;">
+          <i class="bi bi-geo-alt"></i> Data tidak dapat dimuat
+        </div>
+        <small>Periksa koneksi internet Anda</small>
+      </div>
+    `);
   }
 }
 
@@ -361,12 +467,15 @@ export function resizeMap() {
   if (map) {
     setTimeout(() => {
       map.invalidateSize();
+      console.log('Map resized');
     }, 100);
   }
 }
 
 // Initialize all features when DOM is loaded
 export function initializeWasteBankFeatures() {
+  console.log('Initializing waste bank features...');
+  
   // Initialize drag and drop for classification
   initializeDragAndDrop();
   
@@ -377,5 +486,10 @@ export function initializeWasteBankFeatures() {
   const submitBtn = document.querySelector('.submit-btn');
   if (submitBtn) {
     submitBtn.addEventListener('click', handleClassification);
+    console.log('Classification button event listener added');
+  } else {
+    console.warn('Submit button not found - pastikan ada element dengan class .submit-btn');
   }
+
+  console.log('Waste bank features initialized');
 }
