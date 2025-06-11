@@ -21,7 +21,7 @@ export async function login(email, password) {
       
       try {
         const data = await response.json();
-        // OpenAPI for 400: {"non_field_errors": ["Invalid email or password."]}
+        
         if (data.non_field_errors && data.non_field_errors.length > 0) {
           errorMessage = data.non_field_errors[0];
         } else if (data.detail) {
@@ -42,7 +42,7 @@ export async function login(email, password) {
 
     const data = await response.json();
     
-    // Expect access_token and refresh_token as per OpenAPI spec
+    
     if (data.access_token && data.refresh_token) {
       saveTokens(data.access_token, data.refresh_token, data.user);
       return {
@@ -51,7 +51,7 @@ export async function login(email, password) {
         user: data.user
       };
     } else {
-      // Handle cases where tokens might not be in the expected format, though OpenAPI says they should be
+      
       throw new Error("Login response did not contain expected tokens.");
     }
 
@@ -88,9 +88,9 @@ export async function register(name, email, password) {
       
       try {
         const registerData = await registerResponse.json();
-        // OpenAPI for 400: {"email": ["user with this email already exists."]}
-        // Or {"username": ["A user with that username already exists."]}
-        // Or {"password": ["This password is too short."]}
+        
+        
+        
         if (registerData.email && registerData.email.length > 0) {
           errorMessage = `Email: ${registerData.email[0]}`;
         } else if (registerData.username && registerData.username.length > 0) {
@@ -102,7 +102,7 @@ export async function register(name, email, password) {
         } else if (registerData.message) {
           errorMessage = registerData.message;
         } else {
-          // Collect all error messages if they are in a list
+          
           const errorKeys = Object.keys(registerData);
           if (errorKeys.length > 0) {
             let messages = [];
@@ -129,7 +129,7 @@ export async function register(name, email, password) {
 
     const registerData = await registerResponse.json();
 
-    // OpenAPI for /auth/register 201 response includes tokens and user
+    
     if (registerData.access_token && registerData.refresh_token && registerData.user) {
       saveTokens(registerData.access_token, registerData.refresh_token, registerData.user);
       return {
@@ -138,7 +138,7 @@ export async function register(name, email, password) {
         user: registerData.user
       };
     } else {
-      // This case should ideally not happen if API conforms to spec
+      
       console.error("Registration response did not contain expected tokens or user data.", registerData);
       throw new Error("Registrasi berhasil, tetapi data tidak lengkap. Silakan coba login.");
     }
