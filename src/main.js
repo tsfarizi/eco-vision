@@ -15,13 +15,9 @@ function showPage(pageId) {
   if (targetPage) {
     targetPage.classList.add('active');
     
-    // Load content dinamis sesuai halaman - HANYA jika belum ada section aktif
+    // FIXED: Load content hanya untuk main-app dan tidak recursive
     if (pageId === 'main-app') {
-      const activeSections = document.querySelectorAll('.section.active');
-      if (activeSections.length === 0) {
-        // Hanya load jika belum ada section yang aktif
-        loadMainAppContent();
-      }
+      loadMainAppContent();
     }
   } else {
     const fallback = document.getElementById('not-found-page');
@@ -31,10 +27,10 @@ function showPage(pageId) {
 }
 
 function showSection(sectionId) {
-  // FIXED: Cek dulu apakah sudah di main-app, jika belum baru pindah
+  // FIXED: Langsung handle section tanpa recursive call ke showPage
   const mainApp = document.getElementById('main-app');
   if (!mainApp || !mainApp.classList.contains('active')) {
-    // Hanya panggil showPage jika belum di main-app
+    // Langsung aktivkan main-app tanpa memanggil showPage
     document.querySelectorAll('.page').forEach(page => {
       page.classList.remove('active');
     });
@@ -240,12 +236,12 @@ function createBankSampahContent() {
   `;
 }
 
+// FIXED: Simplified loadMainAppContent tanpa recursive calls
 function loadMainAppContent() {
-  // FIXED: Cek dulu apakah sudah ada section aktif
+  // Cek apakah sudah ada section aktif
   const activeSections = document.querySelectorAll('.section.active');
   if (activeSections.length === 0) {
-    // Hanya set default jika belum ada section aktif
-    // JANGAN panggil showSection, langsung buat dan aktifkan
+    // Langsung buat dan aktifkan beranda section
     let berandaSection = document.getElementById('beranda');
     if (!berandaSection) {
       berandaSection = createSection('beranda');
@@ -324,8 +320,11 @@ function setupLoginForm() {
       }
 
       form.reset();
+      
+      // FIXED: Direct navigation without recursive calls
       showPage('main-app');
-      showSection('beranda');
+      // Wait a bit then show beranda section
+      setTimeout(() => showSection('beranda'), 100);
       
     } catch (err) {
       warning.textContent = err.message || 'Email atau password salah.';
@@ -400,7 +399,7 @@ function setupRegisterForm() {
         // Show success message and redirect to main app
         alert('🎉 Registrasi berhasil! Selamat datang di EcoVision!');
         showPage('main-app');
-        showSection('beranda');
+        setTimeout(() => showSection('beranda'), 100);
       } else {
         // Manual login required
         alert('Registrasi berhasil! Silakan login untuk melanjutkan.');
@@ -579,7 +578,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (checkAuthStatus()) {
     console.log('User already authenticated');
     showPage('main-app');
-    showSection('beranda');
+    // FIXED: Add delay to prevent recursive calls
+    setTimeout(() => showSection('beranda'), 100);
   } else {
     showPage('landing-page');
   }
