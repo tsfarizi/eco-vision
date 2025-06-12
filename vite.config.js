@@ -11,7 +11,7 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: true
   },
-  base: './',
+  base: '/eco-vision/',
   publicDir: 'public',
   optimizeDeps: {
     include: ['leaflet'],
